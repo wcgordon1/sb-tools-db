@@ -1,0 +1,261 @@
+# .pages.yml — Pages CMS config for this site (Astro content collections)
+
+media:
+  name: images
+  label: Images
+  input: src/images
+  output: src/images
+  path: "" # start at src/images
+  extensions: [png, jpg, jpeg, webp, svg]
+
+settings:
+  content:
+    merge: true
+
+content:
+  # ---------------------
+  # WORK
+  # ---------------------
+  - name: work
+    label: Work
+    type: collection
+    path: src/content/work
+    filename: "{primary}.md"
+    view:
+      primary: title
+      fields: [title, work, live]
+      sort: [title]
+    fields:
+      - name: title
+        label: Title
+        type: string
+        required: true
+      - name: work
+        label: Work Type
+        type: string
+        required: true
+      - name: live
+        label: Live URL
+        type: string
+        required: true
+      - name: description
+        label: Description
+        type: text
+        required: true
+      - name: intro
+        label: Intro
+        type: object
+        list: true
+        required: false
+        fields:
+          - name: paragraphs
+            label: Paragraphs
+            type: text
+            list: true
+            required: false
+      - name: outro
+        label: Outro
+        type: object
+        list: true
+        required: false
+        fields:
+          - name: paragraphs
+            label: Paragraphs
+            type: text
+            list: true
+            required: false
+      - name: highlights
+        label: Highlights
+        type: object
+        list: true
+        required: false
+        fields:
+          - name: title
+            label: Title
+            type: string
+            required: false
+          - name: paragraphs
+            label: Paragraphs
+            type: text
+            list: true
+            required: false
+      - name: projectData
+        label: Project Data
+        type: object
+        list: true
+        required: false
+        fields:
+          - { name: client, label: Client, type: string }
+          - { name: service, label: Service, type: string }
+          - { name: sector, label: Sector, type: string }
+          - { name: year,   label: Year,   type: string }
+      - name: credits
+        label: Credits
+        type: object
+        list: true
+        required: false
+        fields:
+          - { name: name, label: Name, type: string }
+          - { name: role, label: Role, type: string }
+      - name: images
+        label: Images
+        type: object
+        list: true
+        required: true
+        fields:
+          - name: url
+            label: Image
+            type: image
+            options:
+              media: images
+              path: work
+          - name: alt
+            label: Alt text
+            type: string
+      - name: thumbnail
+        label: Thumbnail
+        type: object
+        fields:
+          - name: url
+            label: Image
+            type: image
+            options:
+              media: images
+              path: work
+          - name: alt
+            label: Alt text
+            type: string
+
+  # ---------------------
+  # STORE
+  # ---------------------
+  - name: store
+    label: Store
+    type: collection
+    path: src/content/store
+    filename: "{primary}.md"
+    view:
+      primary: title
+      fields: [title, price]
+      sort: [title]
+    fields:
+      - name: title
+        label: Title
+        type: string
+        required: true
+      - name: price
+        label: Price
+        type: string
+        required: true
+      - name: checkout
+        label: Checkout URL
+        type: string
+        required: true
+      - name: license
+        label: License
+        type: text
+        required: true
+      - name: highlights
+        label: Highlights
+        type: string
+        list: true
+        required: true
+      - name: specifications
+        label: Specifications
+        type: object
+        list: true
+        required: false
+        fields:
+          - { name: name,  label: Name,  type: string }
+          - { name: value, label: Value, type: string }
+      - name: description
+        label: Description
+        type: text
+        required: true
+      - name: image
+        label: Main Image
+        type: object
+        fields:
+          - name: url
+            label: Image
+            type: image
+            options:
+              media: images
+              path: store
+          - name: alt
+            label: Alt text
+            type: string
+      - name: images
+        label: Gallery Images
+        type: object
+        list: true
+        fields:
+          - name: url
+            label: Image
+            type: image
+            options:
+              media: images
+              path: store
+          - name: alt
+            label: Alt text
+            type: string
+      - name: faq
+        label: FAQ
+        type: object
+        list: true
+        required: false
+        fields:
+          - { name: question, label: Question, type: string }
+          - { name: answer,   label: Answer,   type: text }
+
+  # ---------------------
+  # BLOG POSTS
+  # ---------------------
+  - name: posts
+    label: Posts
+    type: collection
+    path: src/content/posts
+    filename: "{primary}.md"
+    view:
+      primary: title
+      fields: [title, pubDate, author]
+      sort: [pubDate]
+      default: { sort: pubDate, order: desc }
+    fields:
+      - name: title
+        label: Title
+        type: string
+        required: true
+      - name: pubDate
+        label: Publication Date
+        type: date
+        required: true
+      - name: author
+        label: Author
+        type: string
+        required: true
+      - name: description
+        label: Description
+        type: text
+        required: true
+      - name: image
+        label: Cover Image
+        type: object
+        fields:
+          - name: url
+            label: Image
+            type: image
+            options:
+              media: images
+              path: blog
+          - name: alt
+            label: Alt text
+            type: string
+      - name: tags
+        label: Tags
+        type: string
+        list: true
+        required: true
+      - name: body
+        label: Body
+        type: markdown
