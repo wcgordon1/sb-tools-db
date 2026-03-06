@@ -1,16 +1,138 @@
 ---
-import Seo from "@/components/fundations/head/Seo.astro";
-import Meta from "@/components/fundations/head/Meta.astro";
 import Fonts from "@/components/fundations/head/Fonts.astro";
 import Favicons from "@/components/fundations/head/Favicons.astro";
+import {
+  AUTHOR_NAME,
+  AUTHOR_URL,
+  COMPANY_X_HANDLE,
+  DEFAULT_DESCRIPTION,
+  SITE_LOGO_URL,
+  SITE_NAME,
+  SITE_URL,
+  SOCIAL_PROFILES,
+  SUPPORT_EMAIL,
+} from "@/lib/site";
 // Scripts
 import AOS from "@/components/fundations/scripts/AOSHead.astro";
 import FuseJs from "@/components/fundations/scripts/FuseJs.astro";
 import ToggleLocalStorage from "@/components/fundations/scripts/ToggleLocalStorage.astro";
+
+type JsonLdObject = Record<string, unknown>;
+
+const {
+  pageTitle,
+  pageDescription = DEFAULT_DESCRIPTION,
+  canonicalPath,
+  ogImage,
+  ogImageAlt = `${SITE_NAME} logo`,
+  openGraphType = "website",
+  noindex = false,
+  extraJsonLd = [],
+} = Astro.props as {
+  pageTitle?: string;
+  pageDescription?: string;
+  canonicalPath?: string;
+  ogImage?: string;
+  ogImageAlt?: string;
+  openGraphType?: "website" | "article";
+  noindex?: boolean;
+  extraJsonLd?: JsonLdObject[];
+};
+
+const canonicalUrl = canonicalPath
+  ? new URL(canonicalPath, SITE_URL).toString()
+  : new URL(Astro.url.pathname, SITE_URL).toString();
+const title = pageTitle ? `${pageTitle} | ${SITE_NAME}` : SITE_NAME;
+const ogImageUrl = ogImage
+  ? new URL(ogImage, SITE_URL).toString()
+  : SITE_LOGO_URL;
+const robots = noindex ? "noindex, nofollow" : "index, follow";
+
+const organizationJsonLd: JsonLdObject = {
+  "@type": "Organization",
+  "@id": `${SITE_URL}/#organization`,
+  name: SITE_NAME,
+  url: SITE_URL,
+  logo: {
+    "@type": "ImageObject",
+    url: SITE_LOGO_URL,
+  },
+  sameAs: SOCIAL_PROFILES,
+  contactPoint: [
+    {
+      "@type": "ContactPoint",
+      contactType: "customer support",
+      email: SUPPORT_EMAIL,
+      url: `mailto:${SUPPORT_EMAIL}`,
+    },
+  ],
+  founder: {
+    "@type": "Person",
+    name: AUTHOR_NAME,
+    url: AUTHOR_URL,
+  },
+};
+
+const websiteJsonLd: JsonLdObject = {
+  "@type": "WebSite",
+  "@id": `${SITE_URL}/#website`,
+  url: SITE_URL,
+  name: SITE_NAME,
+  inLanguage: "en-US",
+  publisher: {
+    "@id": `${SITE_URL}/#organization`,
+  },
+};
+
+const webPageJsonLd: JsonLdObject = {
+  "@type": "WebPage",
+  "@id": `${canonicalUrl}#webpage`,
+  url: canonicalUrl,
+  name: title,
+  description: pageDescription,
+  isPartOf: {
+    "@id": `${SITE_URL}/#website`,
+  },
+  about: {
+    "@id": `${SITE_URL}/#organization`,
+  },
+  inLanguage: "en-US",
+};
+
+const graphJsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [organizationJsonLd, websiteJsonLd, webPageJsonLd, ...extraJsonLd],
+};
 ---
 
-<Seo />
-<Meta />
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<title>{title}</title>
+<meta name="description" content={pageDescription} />
+<meta name="author" content={AUTHOR_NAME} />
+<meta name="robots" content={robots} />
+<meta name="googlebot" content={robots} />
+<link rel="canonical" href={canonicalUrl} />
+
+<meta property="og:type" content={openGraphType} />
+<meta property="og:site_name" content={SITE_NAME} />
+<meta property="og:url" content={canonicalUrl} />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={pageDescription} />
+<meta property="og:image" content={ogImageUrl} />
+<meta property="og:image:alt" content={ogImageAlt} />
+<meta property="og:locale" content="en_US" />
+
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:site" content={COMPANY_X_HANDLE} />
+<meta name="twitter:creator" content={COMPANY_X_HANDLE} />
+<meta name="twitter:title" content={title} />
+<meta name="twitter:description" content={pageDescription} />
+<meta name="twitter:image" content={ogImageUrl} />
+
+<script type="application/ld+json" set:html={JSON.stringify(graphJsonLd)}></script>
+
 <Fonts />
 <Favicons />
 <!-- Scripts -->

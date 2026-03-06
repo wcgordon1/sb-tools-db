@@ -1,15 +1,21 @@
 ---
 // Assets
-import { Image } from "astro:assets";
+import { getImage, Image } from "astro:assets";
 // Fundations
 import BaseLayout from "@/layouts/BaseLayout.astro";
 import Text from "@/components/fundations/elements/Text.astro";
 import Wrapper from "@/components/fundations/containers/Wrapper.astro";
+import {
+  AUTHOR_NAME,
+  AUTHOR_URL,
+  SITE_LOGO_URL,
+  SITE_URL,
+} from "@/lib/site";
 // Components
 import SubscribeCta from "@/components/blog/SubscribeCta.astro";
 import BlogCard1 from "@/components/blog/BlogCard1.astro";
 // Content
-const { frontmatter } = Astro.props;
+const { frontmatter, slug } = Astro.props;
 import { getCollection } from "astro:content";
 // Sort posts by date
 const allPosts = await getCollection("posts");
@@ -18,9 +24,103 @@ allPosts.sort((a, b) => {
   const dateB = new Date(b.data.pubDate).getTime(); // Convert to timestamp
   return dateB - dateA; // Compare timestamps
 });
+
+const canonicalPath = `/blog/posts/${slug}/`;
+const articleUrl = new URL(canonicalPath, SITE_URL).toString();
+const publishedAtIso = new Date(frontmatter.pubDate).toISOString();
+const tags = Array.isArray(frontmatter.tags) ? frontmatter.tags : [];
+
+let postImagePath = "";
+const imageValue = frontmatter?.image?.url;
+
+if (imageValue) {
+  try {
+    const optimizedImage = await getImage({
+      src: imageValue,
+      width: 1200,
+      height: 630,
+      format: "jpg",
+    });
+    postImagePath = optimizedImage.src;
+  } catch {
+    postImagePath =
+      typeof imageValue === "string" ? imageValue : (imageValue.src ?? "");
+  }
+}
+
+const articleImageUrl = postImagePath
+  ? new URL(postImagePath, SITE_URL).toString()
+  : SITE_LOGO_URL;
+const articleImageAlt =
+  typeof frontmatter?.image?.alt === "string" &&
+  frontmatter.image.alt.trim() &&
+  frontmatter.image.alt.trim() !== "#_"
+    ? frontmatter.image.alt
+    : frontmatter.title;
+
+const blogPostingJsonLd = {
+  "@type": "BlogPosting",
+  "@id": `${articleUrl}#blogposting`,
+  headline: frontmatter.title,
+  description: frontmatter.description,
+  url: articleUrl,
+  mainEntityOfPage: {
+    "@id": `${articleUrl}#webpage`,
+  },
+  datePublished: publishedAtIso,
+  dateModified: publishedAtIso,
+  author: {
+    "@type": "Person",
+    name: AUTHOR_NAME,
+    url: AUTHOR_URL,
+    sameAs: [AUTHOR_URL],
+  },
+  publisher: {
+    "@id": `${SITE_URL}/#organization`,
+  },
+  image: [articleImageUrl],
+  articleSection: "Blog",
+  keywords: tags.join(", "),
+  inLanguage: "en-US",
+};
+
+const breadcrumbJsonLd = {
+  "@type": "BreadcrumbList",
+  "@id": `${articleUrl}#breadcrumb`,
+  itemListElement: [
+    {
+      "@type": "ListItem",
+      position: 1,
+      name: "Home",
+      item: SITE_URL,
+    },
+    {
+      "@type": "ListItem",
+      position: 2,
+      name: "Blog",
+      item: `${SITE_URL}/blog/`,
+    },
+    {
+      "@type": "ListItem",
+      position: 3,
+      name: frontmatter.title,
+      item: articleUrl,
+    },
+  ],
+};
+
+const articleJsonLd = [blogPostingJsonLd, breadcrumbJsonLd];
 ---
 
-<BaseLayout>
+<BaseLayout
+  pageTitle={frontmatter.title}
+  pageDescription={frontmatter.description}
+  canonicalPath={canonicalPath}
+  ogImage={postImagePath}
+  ogImageAlt={articleImageAlt}
+  openGraphType="article"
+  extraJsonLd={articleJsonLd}
+>
   <section>
     <Wrapper variant="standard" class="py-24 lg:py-48">
       <div>
@@ -66,14 +166,7 @@ allPosts.sort((a, b) => {
               class="text-base-700 dark:text-base-300"
             >
               <time
-                datetime={new Date(frontmatter.pubDate).toLocaleDateString(
-                  "en-US",
-                  {
-                    year: "numeric",
-                    month: "long",
-                    day: "2-digit",
-                  }
-                )}
+                datetime={publishedAtIso}
               >
                 {
                   new Date(frontmatter.pubDate).toLocaleDateString("en-US", {
