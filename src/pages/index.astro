@@ -10,7 +10,6 @@ import Philosphy from "@/components/landing/Philosphy.astro";
 import HowWeWork from "@/components/landing/HowWeWork.astro";
 
 // Components
-import LogoCloud from "@/components/assets/LogoCloud.astro";
 import WorkEntries1 from "@/components/work/WorkCard1.astro";
 import BlogCard1 from "@/components/blog/BlogCard1.astro";
 // Content
@@ -27,8 +26,8 @@ allPosts.sort((a, b) => {
 
 <BaseLayout>
   <Hero />
-  <LogoCloud />
   <Services />
+  <!--
   <section>
     <Wrapper variant="standard" class="pb-12">
       <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
@@ -69,6 +68,7 @@ allPosts.sort((a, b) => {
       </div>
     </Wrapper>
   </section>
+  -->
   <Philosphy />
   <HowWeWork />
   <section>
