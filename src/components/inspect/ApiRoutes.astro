@@ -1,0 +1,122 @@
+---
+import Text from "@/components/fundations/elements/Text.astro";
+
+interface DataType {
+  key: string;
+  name: string;
+  fields: unknown[];
+}
+
+interface Props {
+  types: DataType[];
+  baseUrl: string;
+}
+
+const { types, baseUrl } = Astro.props;
+
+const methods = [
+  { verb: "GET", color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500/10 ring-emerald-500/20" },
+  { verb: "POST", color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/10 ring-blue-500/20" },
+  { verb: "PATCH", color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500/10 ring-amber-500/20" },
+  { verb: "DELETE", color: "text-rose-600 dark:text-rose-400", bg: "bg-rose-500/10 ring-rose-500/20" },
+];
+
+const apiBase = `${baseUrl.replace(/\/$/, "")}/api/1.1`;
+
+const endpoints = types.flatMap((type) =>
+  methods.map((m) => ({
+    method: m,
+    type: type.name,
+    path: `${apiBase}/obj/${type.key}${m.verb === "PATCH" || m.verb === "DELETE" ? "/:id" : ""}`,
+  })),
+);
+
+const workflowEndpoints = [
+  { name: "wf/initialize", desc: "Initialize user session" },
+  { name: "wf/process_payment", desc: "Process payment flow" },
+  { name: "wf/send_notification", desc: "Trigger notification" },
+  { name: "wf/update_subscription", desc: "Manage subscription" },
+  { name: "wf/generate_report", desc: "Generate analytics" },
+];
+---
+
+<div class="flex flex-col gap-6">
+  <div>
+    <div class="flex items-center gap-2">
+      <Text
+        tag="h2"
+        variant="displaySM"
+        class="dark:text-white text-base-900 font-medium tracking-tighter"
+      >
+        api endpoints
+      </Text>
+      <a href="https://manual.bubble.io/core-resources/api/the-bubble-api" target="_blank" rel="noopener noreferrer" class="text-base-300 dark:text-base-700 hover:text-base-500 dark:hover:text-base-400 transition-colors shrink-0" title="Bubble docs: The Bubble API">
+        <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+        </svg>
+      </a>
+    </div>
+  </div>
+
+  <div class="relative rounded-xl border border-base-200 dark:border-base-800 overflow-hidden max-h-64">
+    <!-- Blurred content layer -->
+    <div class="select-none pointer-events-none" aria-hidden="true">
+      <!-- Data API Routes -->
+      <div class="px-4 pt-4 pb-2">
+        <span class="text-[10px] font-medium uppercase tracking-wider dark:text-base-600 text-base-400">
+          Data API &middot; /api/1.1/obj/
+        </span>
+      </div>
+
+      <div class="flex flex-col divide-y divide-base-100 dark:divide-base-800/50">
+        {endpoints.slice(0, 16).map((ep) => (
+          <div class="flex items-center gap-3 px-4 py-2 blur-[6px]">
+            <span class={`text-[10px] font-mono font-semibold w-12 shrink-0 ${ep.method.color}`}>
+              {ep.method.verb}
+            </span>
+            <span class="text-xs font-mono dark:text-base-400 text-base-500 truncate">
+              {ep.path}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <!-- Workflow API Routes -->
+      <div class="px-4 pt-4 pb-2 border-t border-base-200 dark:border-base-800">
+        <span class="text-[10px] font-medium uppercase tracking-wider dark:text-base-600 text-base-400">
+          Backend Workflows &middot; /api/1.1/wf/
+        </span>
+      </div>
+
+      <div class="flex flex-col divide-y divide-base-100 dark:divide-base-800/50 pb-4">
+        {workflowEndpoints.map((wf) => (
+          <div class="flex items-center gap-3 px-4 py-2 blur-[6px]">
+            <span class="text-[10px] font-mono font-semibold w-12 shrink-0 text-blue-600 dark:text-blue-400">
+              POST
+            </span>
+            <span class="text-xs font-mono dark:text-base-400 text-base-500 truncate">
+              {apiBase}/{wf.name}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <!-- Overlay -->
+    <div class="absolute inset-0 flex flex-col items-center justify-center bg-base-100/60 dark:bg-base-900/70 backdrop-blur-[2px]">
+      <div class="flex flex-col items-center gap-3 text-center px-6">
+        <div class="size-10 rounded-full bg-base-200 dark:bg-base-800 flex items-center justify-center">
+          <svg class="size-5 text-base-500 dark:text-base-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+          </svg>
+        </div>
+        <Text tag="p" variant="textBase" class="dark:text-white text-base-900 font-medium">
+          API routes hidden for security
+        </Text>
+        <Text tag="p" variant="textXS" class="dark:text-base-400 text-base-500 max-w-sm">
+          Bubble Data API and Backend Workflow endpoints are not displayed to protect this application's security. These routes could expose sensitive data or actions if publicly documented.
+        </Text>
+      </div>
+    </div>
+  </div>
+</div>

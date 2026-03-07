@@ -36,6 +36,7 @@ interface Props {
 const { database } = Astro.props;
 const types = database.types ?? [];
 const refs = database.refs ?? [];
+const dbml = database.dbml ?? "";
 
 function getFieldTypeLabel(field: Field): string {
   if (field.isList) return `list of ${field.baseType}`;
@@ -72,26 +73,120 @@ function getIncomingRefs(typeName: string): Ref[] {
 function getOutgoingRefs(typeName: string): Ref[] {
   return refs.filter((r) => r.fromType === typeName);
 }
+
+// ── Mermaid ERD generation ─────────────────────────────────────────────────
+function sanitizeId(name: string): string {
+  return name
+    .replace(/[^\w\s-]/g, "")
+    .trim()
+    .replace(/[\s-]+/g, "_")
+    .replace(/^_+|_+$/g, "") || "Unknown";
+}
+
+function sanitizeFieldDisplay(name: string): string {
+  return name
+    .replace(/[^\w\s-]/g, "")
+    .trim()
+    .replace(/[\s-]+/g, "_")
+    .replace(/^_+|_+$/g, "") || "field";
+}
+
+function mapFieldType(field: Field): string {
+  if (field.isRelationship) return "ref";
+  switch (field.baseType) {
+    case "text": return "string";
+    case "number": return "int";
+    case "boolean": return "bool";
+    case "date": return "datetime";
+    case "image": return "image";
+    case "file": return "file";
+    default:
+      if (field.baseType.startsWith("option.")) return "enum";
+      if (field.baseType.startsWith("custom.")) return "ref";
+      return "string";
+  }
+}
+
+const typeIdMap = new Map<string, string>();
+types.forEach((t) => typeIdMap.set(t.name, sanitizeId(t.name)));
+
+let mermaidDef = "erDiagram\n";
+
+for (const type of types) {
+  const id = typeIdMap.get(type.name)!;
+  mermaidDef += `    ${id} {\n`;
+  for (const field of type.fields) {
+    const fType = mapFieldType(field);
+    const fName = sanitizeFieldDisplay(field.displayName);
+    const constraint = field.isRelationship ? " FK" : "";
+    mermaidDef += `        ${fType} ${fName}${constraint}\n`;
+  }
+  mermaidDef += `    }\n`;
+}
+
+for (const ref of refs) {
+  const fromId = typeIdMap.get(ref.fromType);
+  const toId = typeIdMap.get(ref.toType);
+  if (!fromId || !toId) continue;
+  const rel = ref.isList ? "}o--||" : "||--||";
+  const label = sanitizeFieldDisplay(ref.fromField);
+  mermaidDef += `    ${fromId} ${rel} ${toId} : "${label}"\n`;
+}
 ---
 
-<div class="flex flex-col gap-8">
+<div class="flex flex-col gap-6" data-db-schema>
   <!-- Section Header -->
   <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
     <div>
-      <Text
-        tag="h2"
-        variant="displaySM"
-        class="dark:text-white text-base-900 font-medium tracking-tighter"
-      >
-        database schema
-      </Text>
+      <div class="flex items-center gap-2">
+        <Text
+          tag="h2"
+          variant="displaySM"
+          class="dark:text-white text-base-900 font-medium tracking-tighter"
+        >
+          database schema
+        </Text>
+        <a href="https://manual.bubble.io/help-guides/data/the-database" target="_blank" rel="noopener noreferrer" class="text-base-300 dark:text-base-700 hover:text-base-500 dark:hover:text-base-400 transition-colors shrink-0" title="Bubble docs: The Database">
+          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+          </svg>
+        </a>
+      </div>
       <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500 mt-1">
         {types.length} data types &middot; {refs.length} relationships
       </Text>
     </div>
+  </div>
 
-    <!-- Legend -->
-    <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+  <!-- View Toggle + Legend Row -->
+  <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <!-- Tab Toggle -->
+    <div class="flex items-center gap-4" data-db-tabs>
+      <button
+        class="text-sm font-medium dark:text-white text-base-900 border-b-2 border-base-900 dark:border-white pb-1 transition-all duration-200 cursor-pointer"
+        data-tab="view"
+        data-active="true"
+      >
+        View
+      </button>
+      <button
+        class="text-sm font-medium dark:text-base-500 text-base-400 border-b-2 border-transparent pb-1 hover:dark:text-base-300 hover:text-base-600 transition-all duration-200 cursor-pointer"
+        data-tab="diagram"
+        data-active="false"
+      >
+        Diagram
+      </button>
+      <button
+        class="text-sm font-medium dark:text-base-500 text-base-400 border-b-2 border-transparent pb-1 hover:dark:text-base-300 hover:text-base-600 transition-all duration-200 cursor-pointer"
+        data-tab="dbml"
+        data-active="false"
+      >
+        DBML
+      </button>
+    </div>
+
+    <!-- Legend (only visible in View mode) -->
+    <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs" data-db-legend>
       <span class="flex items-center gap-1.5">
         <span class="size-2 rounded-full bg-emerald-500"></span>
         <span class="dark:text-base-400 text-base-500">text</span>
@@ -123,137 +218,223 @@ function getOutgoingRefs(typeName: string): Ref[] {
     </div>
   </div>
 
-  <!-- Type Cards -->
-  <div class="flex flex-col divide-y divide-base-200 dark:divide-base-800 border-y border-base-200 dark:border-base-800">
-    {types.map((type, typeIndex) => {
-      const incoming = getIncomingRefs(type.name);
-      const outgoing = getOutgoingRefs(type.name);
-      const relationshipFields = type.fields.filter((f) => f.isRelationship);
-      const dataFields = type.fields.filter((f) => !f.isRelationship);
+  <!-- View: Type Cards -->
+  <div data-db-panel="view">
+    <div class="flex flex-col divide-y divide-base-200 dark:divide-base-800 border-y border-base-200 dark:border-base-800">
+      {types.map((type, typeIndex) => {
+        const incoming = getIncomingRefs(type.name);
+        const outgoing = getOutgoingRefs(type.name);
+        const relationshipFields = type.fields.filter((f) => f.isRelationship);
 
-      return (
-        <details class="group" data-type-card>
-          <summary class="flex items-center justify-between py-4 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
-            <div class="flex items-center gap-3 min-w-0">
-              <span class="text-base-400 dark:text-base-600 text-xs font-mono tabular-nums w-6 shrink-0 text-right">
-                {String(typeIndex + 1).padStart(2, "0")}
-              </span>
-              <span class="dark:text-white text-base-900 font-medium tracking-tight text-sm truncate">
-                {type.name}
-              </span>
-              <span class="text-base-400 dark:text-base-600 text-xs shrink-0">
-                {type.fields.length} {type.fields.length === 1 ? "field" : "fields"}
-              </span>
-              {relationshipFields.length > 0 && (
-                <span class="text-amber-500/70 text-xs shrink-0">
-                  {relationshipFields.length} {relationshipFields.length === 1 ? "rel" : "rels"}
+        return (
+          <details class="group" data-type-card>
+            <summary class="flex items-center justify-between py-4 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+              <div class="flex items-center gap-3 min-w-0">
+                <span class="text-base-400 dark:text-base-600 text-xs font-mono tabular-nums w-6 shrink-0 text-right">
+                  {String(typeIndex + 1).padStart(2, "0")}
                 </span>
+                <span class="dark:text-white text-base-900 font-medium tracking-tight text-sm truncate">
+                  {type.name}
+                </span>
+                <span class="text-base-400 dark:text-base-600 text-xs shrink-0">
+                  {type.fields.length} {type.fields.length === 1 ? "field" : "fields"}
+                </span>
+                {relationshipFields.length > 0 && (
+                  <span class="text-amber-500/70 text-xs shrink-0">
+                    {relationshipFields.length} {relationshipFields.length === 1 ? "rel" : "rels"}
+                  </span>
+                )}
+              </div>
+              <svg
+                class="size-4 text-base-400 dark:text-base-600 shrink-0 transition-transform duration-200 group-open:rotate-180"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke-width="2"
+                stroke="currentColor"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+              </svg>
+            </summary>
+
+            <div class="pb-6 pl-9">
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead>
+                    <tr class="text-left text-xs text-base-400 dark:text-base-600 uppercase tracking-wider">
+                      <th class="pb-2 pr-4 font-medium">Field</th>
+                      <th class="pb-2 pr-4 font-medium">Type</th>
+                      <th class="pb-2 pr-4 font-medium hidden sm:table-cell">DB Type</th>
+                      <th class="pb-2 font-medium hidden md:table-cell">Flags</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-base-100 dark:divide-base-800/50">
+                    {type.fields.map((field) => (
+                      <tr>
+                        <td class="py-1.5 pr-4">
+                          <span class="dark:text-base-300 text-base-700 text-sm">
+                            {field.displayName}
+                          </span>
+                        </td>
+                        <td class="py-1.5 pr-4">
+                          <span class={`text-xs font-mono ${getFieldTypeColor(field)}`}>
+                            {getFieldTypeLabel(field)}
+                          </span>
+                        </td>
+                        <td class="py-1.5 pr-4 hidden sm:table-cell">
+                          <span class="text-xs font-mono dark:text-base-500 text-base-400">
+                            {field.dbType}
+                          </span>
+                        </td>
+                        <td class="py-1.5 hidden md:table-cell">
+                          <div class="flex gap-1.5">
+                            {field.isList && (
+                              <span class="inline-flex items-center rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/20">
+                                list
+                              </span>
+                            )}
+                            {field.isRelationship && (
+                              <span class="inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400 ring-1 ring-amber-500/20">
+                                rel
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {(incoming.length > 0 || outgoing.length > 0) && (
+                <div class="mt-4 pt-4 border-t border-base-100 dark:border-base-800/50">
+                  <span class="text-xs font-medium uppercase tracking-wider text-base-400 dark:text-base-600">
+                    Relationships
+                  </span>
+                  <div class="mt-2 flex flex-col gap-1">
+                    {outgoing.map((ref) => (
+                      <span class="text-xs dark:text-base-400 text-base-500">
+                        <span class="font-mono text-amber-600 dark:text-amber-400">{ref.fromField}</span>
+                        <span class="dark:text-base-600 text-base-300 mx-1">&rarr;</span>
+                        <span class="dark:text-base-300 text-base-700">{ref.toType}</span>
+                        {ref.isList && (
+                          <span class="ml-1 text-blue-500/70">(many)</span>
+                        )}
+                      </span>
+                    ))}
+                    {incoming.map((ref) => (
+                      <span class="text-xs dark:text-base-400 text-base-500">
+                        <span class="dark:text-base-300 text-base-700">{ref.fromType}</span>
+                        <span class="dark:text-base-600 text-base-300 mx-1">&rarr;</span>
+                        <span class="font-mono text-amber-600 dark:text-amber-400">{ref.fromField}</span>
+                        {ref.isList && (
+                          <span class="ml-1 text-blue-500/70">(many)</span>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
-            <svg
-              class="size-4 text-base-400 dark:text-base-600 shrink-0 transition-transform duration-200 group-open:rotate-180"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke-width="2"
-              stroke="currentColor"
-            >
-              <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-            </svg>
-          </summary>
+          </details>
+        );
+      })}
+    </div>
+  </div>
 
-          <div class="pb-6 pl-9">
-            <!-- Fields Table -->
-            <div class="overflow-x-auto">
-              <table class="w-full text-sm">
-                <thead>
-                  <tr class="text-left text-xs text-base-400 dark:text-base-600 uppercase tracking-wider">
-                    <th class="pb-2 pr-4 font-medium">Field</th>
-                    <th class="pb-2 pr-4 font-medium">Type</th>
-                    <th class="pb-2 pr-4 font-medium hidden sm:table-cell">DB Type</th>
-                    <th class="pb-2 font-medium hidden md:table-cell">Flags</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-base-100 dark:divide-base-800/50">
-                  {type.fields.map((field) => (
-                    <tr>
-                      <td class="py-1.5 pr-4">
-                        <span class="dark:text-base-300 text-base-700 text-sm">
-                          {field.displayName}
-                        </span>
-                      </td>
-                      <td class="py-1.5 pr-4">
-                        <span class={`text-xs font-mono ${getFieldTypeColor(field)}`}>
-                          {getFieldTypeLabel(field)}
-                        </span>
-                      </td>
-                      <td class="py-1.5 pr-4 hidden sm:table-cell">
-                        <span class="text-xs font-mono dark:text-base-500 text-base-400">
-                          {field.dbType}
-                        </span>
-                      </td>
-                      <td class="py-1.5 hidden md:table-cell">
-                        <div class="flex gap-1.5">
-                          {field.isList && (
-                            <span class="inline-flex items-center rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/20">
-                              list
-                            </span>
-                          )}
-                          {field.isRelationship && (
-                            <span class="inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400 ring-1 ring-amber-500/20">
-                              rel
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <!-- Relationships summary -->
-            {(incoming.length > 0 || outgoing.length > 0) && (
-              <div class="mt-4 pt-4 border-t border-base-100 dark:border-base-800/50">
-                <span class="text-xs font-medium uppercase tracking-wider text-base-400 dark:text-base-600">
-                  Relationships
-                </span>
-                <div class="mt-2 flex flex-col gap-1">
-                  {outgoing.map((ref) => (
-                    <span class="text-xs dark:text-base-400 text-base-500">
-                      <span class="font-mono text-amber-600 dark:text-amber-400">{ref.fromField}</span>
-                      <span class="dark:text-base-600 text-base-300 mx-1">&rarr;</span>
-                      <span class="dark:text-base-300 text-base-700">{ref.toType}</span>
-                      {ref.isList && (
-                        <span class="ml-1 text-blue-500/70">(many)</span>
-                      )}
-                    </span>
-                  ))}
-                  {incoming.map((ref) => (
-                    <span class="text-xs dark:text-base-400 text-base-500">
-                      <span class="dark:text-base-300 text-base-700">{ref.fromType}</span>
-                      <span class="dark:text-base-600 text-base-300 mx-1">&rarr;</span>
-                      <span class="font-mono text-amber-600 dark:text-amber-400">{ref.fromField}</span>
-                      {ref.isList && (
-                        <span class="ml-1 text-blue-500/70">(many)</span>
-                      )}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
+  <!-- Diagram Panel -->
+  <div data-db-panel="diagram" class="hidden">
+    <div class="relative rounded-lg border border-base-200 dark:border-base-800 overflow-hidden">
+      <!-- Zoom controls -->
+      <div class="absolute top-3 right-3 z-10 flex items-center gap-1" data-erd-controls style="display:none">
+        <button data-erd-zoom-in class="size-8 flex items-center justify-center rounded-md bg-base-100 dark:bg-base-800 ring-1 ring-base-200 dark:ring-base-700 text-base-600 dark:text-base-300 hover:bg-base-200 dark:hover:bg-base-700 transition-colors cursor-pointer text-sm font-medium" title="Zoom in">+</button>
+        <button data-erd-zoom-out class="size-8 flex items-center justify-center rounded-md bg-base-100 dark:bg-base-800 ring-1 ring-base-200 dark:ring-base-700 text-base-600 dark:text-base-300 hover:bg-base-200 dark:hover:bg-base-700 transition-colors cursor-pointer text-sm font-medium" title="Zoom out">&minus;</button>
+        <button data-erd-zoom-reset class="h-8 px-2 flex items-center justify-center rounded-md bg-base-100 dark:bg-base-800 ring-1 ring-base-200 dark:ring-base-700 text-base-600 dark:text-base-300 hover:bg-base-200 dark:hover:bg-base-700 transition-colors cursor-pointer text-xs font-medium" title="Reset zoom">Reset</button>
+      </div>
+      <!-- Zoom hint -->
+      <div class="absolute bottom-3 left-3 z-10 text-[10px] dark:text-base-600 text-base-400 pointer-events-none" data-erd-hint style="display:none">
+        Scroll to zoom · Drag to pan
+      </div>
+      <div class="overflow-hidden" style="height:600px;cursor:grab" data-erd-viewport>
+        <div data-erd-container style="transform-origin:0 0">
+          <div class="flex items-center justify-center min-h-64 dark:text-base-500 text-base-400 text-sm" data-erd-loading>
+            Rendering diagram…
           </div>
-        </details>
-      );
-    })}
+        </div>
+      </div>
+    </div>
+    <script type="application/json" data-mermaid-src set:html={JSON.stringify(mermaidDef)}></script>
+  </div>
+
+  <!-- DBML Panel -->
+  <div data-db-panel="dbml" class="hidden">
+    <div class="relative rounded-lg border border-base-200 dark:border-base-800 overflow-hidden">
+      <div class="absolute top-3 right-3 z-10">
+        <button
+          data-copy-dbml
+          class="inline-flex items-center gap-1.5 rounded-md bg-base-100 dark:bg-base-800 px-2.5 py-1.5 text-xs font-medium dark:text-base-300 text-base-600 ring-1 ring-base-200 dark:ring-base-700 hover:bg-base-200 dark:hover:bg-base-700 transition-colors duration-150 cursor-pointer"
+        >
+          <svg class="size-3.5" data-copy-icon fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
+          </svg>
+          <svg class="size-3.5 hidden" data-check-icon fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+          </svg>
+          <span data-copy-text>Copy</span>
+        </button>
+      </div>
+      <div class="overflow-auto max-h-128 p-4 pr-20">
+        <pre class="text-xs font-mono leading-relaxed dark:text-base-300 text-base-600 whitespace-pre">{dbml}</pre>
+      </div>
+    </div>
   </div>
 </div>
 
 <script>
-  document.addEventListener("astro:page-load", () => {
-    const cards = document.querySelectorAll("[data-type-card]");
+  function initDbSchema() {
+    const container = document.querySelector("[data-db-schema]");
+    if (!container) return;
+    if (container.hasAttribute("data-initialized")) return;
+    container.setAttribute("data-initialized", "true");
+
+    const tabs = container.querySelectorAll("[data-tab]");
+    const panels = container.querySelectorAll("[data-db-panel]");
+    const legend = container.querySelector("[data-db-legend]");
+    let diagramRendered = false;
+
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        const target = tab.getAttribute("data-tab")!;
+
+        tabs.forEach((t) => {
+          const isActive = t.getAttribute("data-tab") === target;
+          t.setAttribute("data-active", String(isActive));
+
+          if (isActive) {
+            t.classList.add("dark:text-white", "text-base-900", "border-base-900", "dark:border-white");
+            t.classList.remove("dark:text-base-500", "text-base-400", "border-transparent");
+          } else {
+            t.classList.remove("dark:text-white", "text-base-900", "border-base-900", "dark:border-white");
+            t.classList.add("dark:text-base-500", "text-base-400", "border-transparent");
+          }
+        });
+
+        panels.forEach((p) => {
+          p.classList.toggle("hidden", p.getAttribute("data-db-panel") !== target);
+        });
+
+        legend?.classList.toggle("hidden", target !== "view");
+
+        if (target === "diagram" && !diagramRendered) {
+          diagramRendered = true;
+          renderErd();
+        }
+      });
+    });
+
+    // Accordion
+    const cards = container.querySelectorAll("[data-type-card]");
     cards.forEach((card) => {
       card.addEventListener("toggle", () => {
-        // Close other open cards when one is opened (accordion behavior)
         if ((card as HTMLDetailsElement).open) {
           cards.forEach((other) => {
             if (other !== card && (other as HTMLDetailsElement).open) {
@@ -263,5 +444,173 @@ function getOutgoingRefs(typeName: string): Ref[] {
         }
       });
     });
-  });
+
+    // Copy DBML
+    const copyBtn = container.querySelector("[data-copy-dbml]");
+    const copyIcon = container.querySelector("[data-copy-icon]");
+    const checkIcon = container.querySelector("[data-check-icon]");
+    const copyText = container.querySelector("[data-copy-text]");
+    const dbmlPre = container.querySelector('[data-db-panel="dbml"] pre');
+
+    copyBtn?.addEventListener("click", async () => {
+      if (!dbmlPre) return;
+      try {
+        await navigator.clipboard.writeText(dbmlPre.textContent ?? "");
+        copyIcon?.classList.add("hidden");
+        checkIcon?.classList.remove("hidden");
+        if (copyText) copyText.textContent = "Copied";
+        setTimeout(() => {
+          copyIcon?.classList.remove("hidden");
+          checkIcon?.classList.add("hidden");
+          if (copyText) copyText.textContent = "Copy";
+        }, 2000);
+      } catch {
+        const range = document.createRange();
+        range.selectNodeContents(dbmlPre);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+        document.execCommand("copy");
+        sel?.removeAllRanges();
+      }
+    });
+
+    async function renderErd() {
+      const viewport = container!.querySelector("[data-erd-viewport]") as HTMLElement;
+      const erdContainer = container!.querySelector("[data-erd-container]") as HTMLElement;
+      const mermaidSrc = container!.querySelector("[data-mermaid-src]");
+      const loading = container!.querySelector("[data-erd-loading]");
+      const controls = container!.querySelector("[data-erd-controls]") as HTMLElement;
+      const hint = container!.querySelector("[data-erd-hint]") as HTMLElement;
+      if (!viewport || !erdContainer || !mermaidSrc) return;
+
+      try {
+        const definition = JSON.parse(mermaidSrc.textContent ?? '""');
+        if (!definition) throw new Error("Empty mermaid definition");
+
+        const { default: mermaid } = await import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs");
+
+        const isDark = document.documentElement.classList.contains("dark");
+
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: isDark ? "dark" : "default",
+          er: { useMaxWidth: false },
+          themeVariables: isDark
+            ? {
+                darkMode: true,
+                background: "transparent",
+                primaryColor: "#1e293b",
+                primaryTextColor: "#e2e8f0",
+                primaryBorderColor: "#334155",
+                lineColor: "#475569",
+                secondaryColor: "#1e293b",
+                tertiaryColor: "#0f172a",
+                fontFamily: "ui-monospace, monospace",
+                fontSize: "12px",
+              }
+            : {
+                background: "transparent",
+                primaryColor: "#f8fafc",
+                primaryTextColor: "#1e293b",
+                primaryBorderColor: "#e2e8f0",
+                lineColor: "#94a3b8",
+                secondaryColor: "#f1f5f9",
+                tertiaryColor: "#ffffff",
+                fontFamily: "ui-monospace, monospace",
+                fontSize: "12px",
+              },
+        });
+
+        const { svg } = await mermaid.render("erd-diagram", definition);
+
+        if (loading) loading.remove();
+        erdContainer.innerHTML = svg;
+
+        if (controls) controls.style.display = "";
+        if (hint) hint.style.display = "";
+
+        let scale = 1;
+        let panX = 0;
+        let panY = 0;
+        const MIN_SCALE = 0.2;
+        const MAX_SCALE = 4;
+        const ZOOM_STEP = 0.15;
+
+        function applyTransform() {
+          erdContainer.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+        }
+
+        // Scroll-wheel zoom (centered on cursor)
+        viewport.addEventListener("wheel", (e) => {
+          e.preventDefault();
+          const rect = viewport.getBoundingClientRect();
+          const mx = e.clientX - rect.left;
+          const my = e.clientY - rect.top;
+
+          const oldScale = scale;
+          const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
+          scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale + delta));
+
+          const ratio = scale / oldScale;
+          panX = mx - ratio * (mx - panX);
+          panY = my - ratio * (my - panY);
+
+          applyTransform();
+        }, { passive: false });
+
+        // Drag to pan
+        let dragging = false;
+        let startX = 0;
+        let startY = 0;
+
+        viewport.addEventListener("pointerdown", (e) => {
+          dragging = true;
+          startX = e.clientX - panX;
+          startY = e.clientY - panY;
+          viewport.style.cursor = "grabbing";
+          viewport.setPointerCapture(e.pointerId);
+        });
+
+        viewport.addEventListener("pointermove", (e) => {
+          if (!dragging) return;
+          panX = e.clientX - startX;
+          panY = e.clientY - startY;
+          applyTransform();
+        });
+
+        viewport.addEventListener("pointerup", () => {
+          dragging = false;
+          viewport.style.cursor = "grab";
+        });
+
+        // Button controls
+        container!.querySelector("[data-erd-zoom-in]")?.addEventListener("click", () => {
+          scale = Math.min(MAX_SCALE, scale + ZOOM_STEP);
+          applyTransform();
+        });
+
+        container!.querySelector("[data-erd-zoom-out]")?.addEventListener("click", () => {
+          scale = Math.max(MIN_SCALE, scale - ZOOM_STEP);
+          applyTransform();
+        });
+
+        container!.querySelector("[data-erd-zoom-reset]")?.addEventListener("click", () => {
+          scale = 1;
+          panX = 0;
+          panY = 0;
+          applyTransform();
+        });
+      } catch (err) {
+        console.error("[erd] mermaid render failed:", err);
+        if (loading) {
+          loading.textContent = "Failed to render diagram";
+          loading.classList.add("text-rose-500");
+        }
+      }
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", initDbSchema);
+  document.addEventListener("astro:page-load", initDbSchema);
 </script>

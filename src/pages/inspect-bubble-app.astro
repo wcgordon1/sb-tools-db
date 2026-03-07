@@ -7,6 +7,7 @@ import DatabaseSchema from "@/components/inspect/DatabaseSchema.astro";
 import OptionSets from "@/components/inspect/OptionSets.astro";
 import ColorPalette from "@/components/inspect/ColorPalette.astro";
 import PageList from "@/components/inspect/PageList.astro";
+import ApiRoutes from "@/components/inspect/ApiRoutes.astro";
 import ConsoleMessages from "@/components/inspect/ConsoleMessages.astro";
 
 import fixtureData from "../../data/inspections/2026-03-07T00-00-43-548Z_app-vows-you.json";
@@ -34,7 +35,7 @@ const consoleMessages = fixtureData.consoleMessages;
           variant="displayXL"
           class="dark:text-white text-base-900 font-medium tracking-tighter mb-2"
         >
-          app inspector
+          Bubble app inspector
         </Text>
         <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
           <span
@@ -100,6 +101,13 @@ const consoleMessages = fixtureData.consoleMessages;
   <section>
     <Wrapper variant="standard" class="pb-16">
       <OptionSets optionSets={optionSets} />
+    </Wrapper>
+  </section>
+
+  <!-- API Routes (blurred) -->
+  <section>
+    <Wrapper variant="standard" class="pb-16">
+      <ApiRoutes types={database.types} baseUrl={fixtureData.finalUrl} />
     </Wrapper>
   </section>
 
