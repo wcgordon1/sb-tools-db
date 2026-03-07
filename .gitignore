@@ -30,5 +30,8 @@ npm-debug.log*
 # vercel
 .vercel/
 
+# local inspection fixture data
+data/
+
 # misc
 *.tsbuildinfo
