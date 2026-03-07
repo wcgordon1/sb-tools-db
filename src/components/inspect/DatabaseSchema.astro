@@ -39,6 +39,7 @@ const safeAppName = appName.replace(/[^a-z0-9]/gi, "-").toLowerCase() || "app";
 const types = database.types ?? [];
 const refs = database.refs ?? [];
 const dbml = database.dbml ?? "";
+const totalFields = types.reduce((sum: number, t: DataType) => sum + t.fields.length, 0);
 
 function getFieldTypeLabel(field: Field): string {
   if (field.isList) return `list of ${field.baseType}`;
@@ -155,7 +156,7 @@ for (const ref of refs) {
         </a>
       </div>
       <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500 mt-1">
-        {types.length} data types &middot; {refs.length} relationships
+        {types.length} data types &middot; {totalFields} fields &middot; {refs.length} relationships
       </Text>
     </div>
   </div>

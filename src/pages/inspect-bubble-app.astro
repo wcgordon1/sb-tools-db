@@ -12,6 +12,7 @@ import ConsoleMessages from "@/components/inspect/ConsoleMessages.astro";
 import { inspectUrl } from "@/lib/worker/client";
 import { deriveCallerId } from "@/lib/worker/caller-id";
 import { saveInspectionResult } from "@/lib/worker/storage";
+import type { InspectError } from "@/lib/worker/types";
 
 export const prerender = false;
 
@@ -35,8 +36,10 @@ if (rawUrl) {
         notBubble = true;
         inspectionData = null;
       }
-    } else {
-      inspectionError = result.error;
+    }
+
+    if (!result.ok) {
+      inspectionError = (result as InspectError).error;
     }
   } catch (err) {
     inspectionError =
@@ -63,7 +66,7 @@ const consoleMessages = inspectionData?.consoleMessages ?? [];
   <!-- Header + Form -->
   <section>
     <Wrapper variant="standard" class="pt-32 pb-12">
-      <div class="flex flex-col gap-6">
+      <div class="flex flex-col gap-4">
         <Text
           tag="h1"
           variant="displayXL"
@@ -71,16 +74,27 @@ const consoleMessages = inspectionData?.consoleMessages ?? [];
         >
           Bubble app inspector
         </Text>
+        {!hasResults && (
+          <Text tag="p" variant="textBase" class="dark:text-base-400 text-base-500 max-w-xl">
+            Enter any Bubble.io app URL to reverse-engineer its database schema, option sets, pages, color palette, and more.
+          </Text>
+        )}
 
-        <div class="flex flex-col gap-2" data-inspect-form>
+        <!-- Form -->
+        <div class="flex flex-col gap-3 mt-2" data-inspect-form>
           <div class="flex flex-col gap-3 sm:flex-row">
             <div class="relative flex-1">
+              <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
+                <svg class="size-4 dark:text-base-600 text-base-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.86-2.03a4.5 4.5 0 00-1.242-7.244l4.5-4.5a4.5 4.5 0 016.364 6.364l-1.757 1.757" />
+                </svg>
+              </div>
               <input
                 type="text"
                 data-url-input
                 value={rawUrl}
-                placeholder="https://your-bubble-app.com"
-                class="w-full rounded-lg border border-base-200 dark:border-base-800 bg-white dark:bg-base-950 px-4 py-2.5 text-sm dark:text-white text-base-900 placeholder:text-base-400 dark:placeholder:text-base-600 focus:outline-none focus:ring-2 focus:ring-base-900 dark:focus:ring-white focus:border-transparent transition-all"
+                placeholder="app.example.com"
+                class="w-full rounded-xl border border-base-200 dark:border-base-800 bg-white dark:bg-base-950 pl-10 pr-4 py-3 text-sm dark:text-white text-base-900 placeholder:text-base-400 dark:placeholder:text-base-600 focus:outline-none focus:ring-2 focus:ring-base-900 dark:focus:ring-white focus:border-transparent transition-all"
               />
               <span
                 data-url-error
@@ -91,8 +105,11 @@ const consoleMessages = inspectionData?.consoleMessages ?? [];
             </div>
             <button
               data-submit-btn
-              class="inline-flex items-center justify-center gap-2 rounded-lg bg-base-900 dark:bg-white px-5 py-2.5 text-sm font-medium text-white dark:text-base-900 hover:bg-base-800 dark:hover:bg-base-100 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+              class="group inline-flex items-center justify-center gap-2 rounded-xl bg-base-900 dark:bg-white px-6 py-3 text-sm font-medium text-white dark:text-base-900 hover:bg-base-800 dark:hover:bg-base-100 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
             >
+              <svg data-btn-icon class="size-4 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+              </svg>
               <span data-btn-text>Inspect</span>
               <svg data-btn-spinner class="hidden size-4 animate-spin" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
@@ -100,16 +117,17 @@ const consoleMessages = inspectionData?.consoleMessages ?? [];
               </svg>
             </button>
           </div>
-          <div class="flex items-center justify-between">
+          <div class="flex items-center justify-between mt-1">
             <span data-tries-text class="text-xs dark:text-base-600 text-base-400"></span>
-            <span class="text-xs text-rose-500">
-              {inspectionError && inspectionError}
-            </span>
+            {inspectionError && (
+              <span class="text-xs text-rose-500">{inspectionError}</span>
+            )}
           </div>
         </div>
 
+        <!-- Result header badge row -->
         {hasResults && (
-          <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+          <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 mt-2">
             <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20 w-fit">
               <span class="size-1.5 rounded-full bg-emerald-500"></span>
               Bubble Detected
@@ -131,6 +149,7 @@ const consoleMessages = inspectionData?.consoleMessages ?? [];
           </div>
         )}
 
+        <!-- Not bubble notice -->
         {notBubble && (
           <div class="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
             <span class="text-amber-500 text-sm mt-0.5 shrink-0">!</span>
@@ -148,6 +167,116 @@ const consoleMessages = inspectionData?.consoleMessages ?? [];
     </Wrapper>
   </section>
 
+  <!-- Loading skeleton (shown client-side while navigating to SSR) -->
+  <div data-loading-skeleton class="hidden">
+    <section>
+      <Wrapper variant="standard" class="pb-24">
+        <div class="rounded-2xl border border-base-200 dark:border-base-800 bg-base-50 dark:bg-base-950 p-8 sm:p-12">
+          <div class="flex flex-col items-center justify-center gap-6 min-h-80">
+            <!-- Animated scanner -->
+            <div class="relative size-16">
+              <div class="absolute inset-0 rounded-full border-2 border-base-200 dark:border-base-800"></div>
+              <div class="absolute inset-0 rounded-full border-2 border-transparent border-t-base-900 dark:border-t-white animate-spin"></div>
+              <div class="absolute inset-2 rounded-full border-2 border-transparent border-b-base-400 dark:border-b-base-600 animate-spin" style="animation-direction:reverse;animation-duration:1.5s"></div>
+              <div class="absolute inset-4 rounded-full bg-base-200 dark:bg-base-800 flex items-center justify-center">
+                <svg class="size-4 dark:text-base-500 text-base-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                </svg>
+              </div>
+            </div>
+
+            <div class="flex flex-col items-center gap-2 text-center">
+              <Text tag="p" variant="textBase" class="dark:text-white text-base-900 font-medium">
+                Inspecting application...
+              </Text>
+              <Text tag="p" variant="textSM" class="dark:text-base-500 text-base-400 max-w-sm">
+                Scanning runtime, database schema, option sets, pages, and more. This usually takes 10–20 seconds.
+              </Text>
+            </div>
+
+            <!-- Animated progress dots -->
+            <div class="flex items-center gap-3 mt-2">
+              <div class="flex items-center gap-1.5">
+                <span class="size-1.5 rounded-full bg-base-900 dark:bg-white animate-pulse"></span>
+                <span class="size-1.5 rounded-full bg-base-900 dark:bg-white animate-pulse" style="animation-delay:0.2s"></span>
+                <span class="size-1.5 rounded-full bg-base-900 dark:bg-white animate-pulse" style="animation-delay:0.4s"></span>
+              </div>
+            </div>
+
+            <!-- Fake progress steps -->
+            <div class="flex flex-wrap justify-center gap-2 mt-4">
+              <span class="inline-flex items-center gap-1.5 rounded-full bg-base-200/50 dark:bg-base-800/50 px-2.5 py-1 text-[10px] dark:text-base-500 text-base-400 ring-1 ring-base-200 dark:ring-base-800 animate-pulse">
+                Detecting runtime
+              </span>
+              <span class="inline-flex items-center gap-1.5 rounded-full bg-base-200/50 dark:bg-base-800/50 px-2.5 py-1 text-[10px] dark:text-base-500 text-base-400 ring-1 ring-base-200 dark:ring-base-800 animate-pulse" style="animation-delay:0.3s">
+                Extracting schema
+              </span>
+              <span class="inline-flex items-center gap-1.5 rounded-full bg-base-200/50 dark:bg-base-800/50 px-2.5 py-1 text-[10px] dark:text-base-500 text-base-400 ring-1 ring-base-200 dark:ring-base-800 animate-pulse" style="animation-delay:0.6s">
+                Parsing option sets
+              </span>
+              <span class="inline-flex items-center gap-1.5 rounded-full bg-base-200/50 dark:bg-base-800/50 px-2.5 py-1 text-[10px] dark:text-base-500 text-base-400 ring-1 ring-base-200 dark:ring-base-800 animate-pulse" style="animation-delay:0.9s">
+                Mapping pages
+              </span>
+            </div>
+          </div>
+        </div>
+      </Wrapper>
+    </section>
+  </div>
+
+  <!-- Empty state: what this tool does -->
+  {!hasResults && !notBubble && !inspectionError && !rawUrl && (
+    <section>
+      <Wrapper variant="standard" class="pb-24">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div class="rounded-xl border border-base-200 dark:border-base-800 p-6 flex flex-col gap-3">
+            <div class="size-9 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+              <svg class="size-4.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
+              </svg>
+            </div>
+            <Text tag="h3" variant="textBase" class="dark:text-white text-base-900 font-medium">
+              Database schema
+            </Text>
+            <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500">
+              Discover every data type, field, and relationship in the app's database — with an interactive ERD diagram.
+            </Text>
+          </div>
+
+          <div class="rounded-xl border border-base-200 dark:border-base-800 p-6 flex flex-col gap-3">
+            <div class="size-9 rounded-lg bg-blue-500/10 flex items-center justify-center">
+              <svg class="size-4.5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z" />
+              </svg>
+            </div>
+            <Text tag="h3" variant="textBase" class="dark:text-white text-base-900 font-medium">
+              Option sets & pages
+            </Text>
+            <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500">
+              See all static option sets with their attributes, and every page the app exposes — categorized automatically.
+            </Text>
+          </div>
+
+          <div class="rounded-xl border border-base-200 dark:border-base-800 p-6 flex flex-col gap-3">
+            <div class="size-9 rounded-lg bg-rose-500/10 flex items-center justify-center">
+              <svg class="size-4.5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4.098 19.902a3.75 3.75 0 005.304 0l6.401-6.402M6.75 21A3.75 3.75 0 013 17.25V4.125C3 3.504 3.504 3 4.125 3h5.25c.621 0 1.125.504 1.125 1.125v4.072M6.75 21a3.75 3.75 0 003.75-3.75V8.197M6.75 21h13.125c.621 0 1.125-.504 1.125-1.125v-5.25c0-.621-.504-1.125-1.125-1.125h-4.072M10.5 8.197l2.88-2.88c.438-.439 1.15-.439 1.59 0l3.712 3.713c.44.44.44 1.152 0 1.59l-2.879 2.88M6.75 17.25h.008v.008H6.75v-.008z" />
+              </svg>
+            </div>
+            <Text tag="h3" variant="textBase" class="dark:text-white text-base-900 font-medium">
+              Colors & console
+            </Text>
+            <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500">
+              Extract the complete color palette with hex values, and capture console errors, warnings, and logs.
+            </Text>
+          </div>
+        </div>
+      </Wrapper>
+    </section>
+  )}
+
+  <!-- Results -->
   {hasResults && (
     <>
       <!-- Detection Summary -->
@@ -217,15 +346,17 @@ const consoleMessages = inspectionData?.consoleMessages ?? [];
     const input = form.querySelector("[data-url-input]");
     const submitBtn = form.querySelector("[data-submit-btn]");
     const btnText = form.querySelector("[data-btn-text]");
+    const btnIcon = form.querySelector("[data-btn-icon]");
     const btnSpinner = form.querySelector("[data-btn-spinner]");
     const urlError = form.querySelector("[data-url-error]");
     const triesText = form.querySelector("[data-tries-text]");
+    const loadingSkeleton = document.querySelector("[data-loading-skeleton]");
 
-    const STORAGE_KEY = "inspect-bubble-tries";
+    var STORAGE_KEY = "inspect-bubble-tries";
 
     function getTriesUsed() {
       try {
-        const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+        var stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
         if (stored.resetAt && Date.now() > stored.resetAt) {
           localStorage.removeItem(STORAGE_KEY);
           return 0;
@@ -237,14 +368,14 @@ const consoleMessages = inspectionData?.consoleMessages ?? [];
     }
 
     function incrementTries() {
-      const newCount = getTriesUsed() + 1;
-      const resetAt = Date.now() + 24 * 60 * 60 * 1000;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ count: newCount, resetAt }));
+      var newCount = getTriesUsed() + 1;
+      var resetAt = Date.now() + 24 * 60 * 60 * 1000;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ count: newCount, resetAt: resetAt }));
       return newCount;
     }
 
     function updateTriesDisplay() {
-      const remaining = MAX_TRIES - getTriesUsed();
+      var remaining = MAX_TRIES - getTriesUsed();
       if (triesText) {
         triesText.textContent = remaining <= 0
           ? "No inspections remaining (resets in 24h)"
@@ -277,8 +408,10 @@ const consoleMessages = inspectionData?.consoleMessages ?? [];
     function setLoading(loading) {
       if (submitBtn) submitBtn.disabled = loading;
       if (btnText) btnText.textContent = loading ? "Inspecting…" : "Inspect";
+      if (btnIcon) btnIcon.classList.toggle("hidden", loading);
       if (btnSpinner) btnSpinner.classList.toggle("hidden", !loading);
       if (input) input.disabled = loading;
+      if (loadingSkeleton) loadingSkeleton.classList.toggle("hidden", !loading);
     }
 
     function handleSubmit() {
@@ -299,7 +432,6 @@ const consoleMessages = inspectionData?.consoleMessages ?? [];
       updateTriesDisplay();
       setLoading(true);
 
-      // Navigate to same page with ?url= param — triggers a fresh SSR
       window.location.href = "/inspect-bubble-app?url=" + encodeURIComponent(url);
     }
 
