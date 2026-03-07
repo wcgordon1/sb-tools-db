@@ -192,16 +192,27 @@ for (const ref of refs) {
       </button>
     </div>
 
-    <!-- Download SVG (only visible in Diagram mode) -->
-    <button
-      data-erd-download
-      class="hidden items-center gap-1.5 rounded-md bg-base-100 dark:bg-base-800 px-2.5 py-1.5 text-xs font-medium dark:text-base-300 text-base-600 ring-1 ring-base-200 dark:ring-base-700 hover:bg-base-200 dark:hover:bg-base-700 transition-colors duration-150 cursor-pointer"
-    >
-      <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-      </svg>
-      Download SVG
-    </button>
+    <!-- Download buttons (contextual per tab) -->
+    <div class="flex items-center gap-2">
+      <button
+        data-erd-download
+        class="hidden items-center gap-1.5 rounded-md bg-base-100 dark:bg-base-800 px-2.5 py-1.5 text-xs font-medium dark:text-base-300 text-base-600 ring-1 ring-base-200 dark:ring-base-700 hover:bg-base-200 dark:hover:bg-base-700 transition-colors duration-150 cursor-pointer"
+      >
+        <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+        </svg>
+        Download SVG
+      </button>
+      <button
+        data-dbml-download
+        class="hidden items-center gap-1.5 rounded-md bg-base-100 dark:bg-base-800 px-2.5 py-1.5 text-xs font-medium dark:text-base-300 text-base-600 ring-1 ring-base-200 dark:ring-base-700 hover:bg-base-200 dark:hover:bg-base-700 transition-colors duration-150 cursor-pointer"
+      >
+        <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+        </svg>
+        Download DBML
+      </button>
+    </div>
 
     <!-- Legend (only visible in View mode) -->
     <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs" data-db-legend>
@@ -418,6 +429,7 @@ for (const ref of refs) {
     const panels = container.querySelectorAll("[data-db-panel]");
     const legend = container.querySelector("[data-db-legend]");
     const downloadBtn = container.querySelector("[data-erd-download]") as HTMLElement;
+    const dbmlDownloadBtn = container.querySelector("[data-dbml-download]") as HTMLElement;
     const appName = container.getAttribute("data-app-name") || "app";
     let diagramRendered = false;
 
@@ -454,6 +466,16 @@ for (const ref of refs) {
           }
         }
 
+        if (dbmlDownloadBtn) {
+          if (target === "dbml") {
+            dbmlDownloadBtn.classList.remove("hidden");
+            dbmlDownloadBtn.classList.add("inline-flex");
+          } else {
+            dbmlDownloadBtn.classList.add("hidden");
+            dbmlDownloadBtn.classList.remove("inline-flex");
+          }
+        }
+
         if (target === "diagram" && !diagramRendered) {
           diagramRendered = true;
           renderErd();
@@ -470,6 +492,20 @@ for (const ref of refs) {
       const a = document.createElement("a");
       a.href = url;
       a.download = `${appName}-mermaid.svg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+
+    dbmlDownloadBtn?.addEventListener("click", () => {
+      const dbmlContent = container.querySelector('[data-db-panel="dbml"] pre')?.textContent;
+      if (!dbmlContent) return;
+      const blob = new Blob([dbmlContent], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${appName}-schema.dbml`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
