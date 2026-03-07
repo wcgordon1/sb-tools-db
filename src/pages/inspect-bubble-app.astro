@@ -19,11 +19,13 @@ export const prerender = false;
 const MAX_TRIES = 5;
 
 const rawUrl = Astro.url.searchParams.get("url") ?? "";
+const requestCookies = Astro.request.headers.get("cookie") ?? "";
+const hasInspectTrigger = requestCookies.includes("inspect-trigger=1");
 let inspectionData: any = null;
 let inspectionError: string | null = null;
 let notBubble = false;
 
-if (rawUrl) {
+if (rawUrl && hasInspectTrigger) {
   try {
     const callerId = deriveCallerId(Astro.request);
     const result = await inspectUrl(rawUrl, callerId);
@@ -225,7 +227,7 @@ const consoleMessages = inspectionData?.consoleMessages ?? [];
   </div>
 
   <!-- Empty state: what this tool does -->
-  {!hasResults && !notBubble && !inspectionError && !rawUrl && (
+  {!hasResults && !notBubble && !inspectionError && (
     <section>
       <Wrapper variant="standard" class="pb-24">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -432,6 +434,7 @@ const consoleMessages = inspectionData?.consoleMessages ?? [];
       updateTriesDisplay();
       setLoading(true);
 
+      document.cookie = "inspect-trigger=1; path=/; max-age=120; SameSite=Lax";
       window.location.href = "/inspect-bubble-app?url=" + encodeURIComponent(url);
     }
 
