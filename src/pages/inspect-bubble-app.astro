@@ -93,7 +93,7 @@ const consoleMessages = fixtureData.consoleMessages;
   <!-- Database Schema -->
   <section>
     <Wrapper variant="standard" class="pb-16">
-      <DatabaseSchema database={database} />
+      <DatabaseSchema database={database} appName={detection.app_id ?? fixtureData.finalUrl} />
     </Wrapper>
   </section>
 

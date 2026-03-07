@@ -31,9 +31,11 @@ interface Props {
     dbml?: string;
     warnings?: string[];
   };
+  appName?: string;
 }
 
-const { database } = Astro.props;
+const { database, appName = "app" } = Astro.props;
+const safeAppName = appName.replace(/[^a-z0-9]/gi, "-").toLowerCase() || "app";
 const types = database.types ?? [];
 const refs = database.refs ?? [];
 const dbml = database.dbml ?? "";
@@ -134,7 +136,7 @@ for (const ref of refs) {
 }
 ---
 
-<div class="flex flex-col gap-6" data-db-schema>
+<div class="flex flex-col gap-6" data-db-schema data-app-name={safeAppName}>
   <!-- Section Header -->
   <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
     <div>
@@ -160,7 +162,7 @@ for (const ref of refs) {
 
   <!-- View Toggle + Legend Row -->
   <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-    <!-- Tab Toggle -->
+    <!-- Tab Toggle + Download -->
     <div class="flex items-center gap-4" data-db-tabs>
       <button
         class="text-sm font-medium dark:text-white text-base-900 border-b-2 border-base-900 dark:border-white pb-1 transition-all duration-200 cursor-pointer"
@@ -184,6 +186,17 @@ for (const ref of refs) {
         DBML
       </button>
     </div>
+
+    <!-- Download SVG (only visible in Diagram mode) -->
+    <button
+      data-erd-download
+      class="hidden items-center gap-1.5 rounded-md bg-base-100 dark:bg-base-800 px-2.5 py-1.5 text-xs font-medium dark:text-base-300 text-base-600 ring-1 ring-base-200 dark:ring-base-700 hover:bg-base-200 dark:hover:bg-base-700 transition-colors duration-150 cursor-pointer"
+    >
+      <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+      </svg>
+      Download SVG
+    </button>
 
     <!-- Legend (only visible in View mode) -->
     <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs" data-db-legend>
@@ -399,6 +412,8 @@ for (const ref of refs) {
     const tabs = container.querySelectorAll("[data-tab]");
     const panels = container.querySelectorAll("[data-db-panel]");
     const legend = container.querySelector("[data-db-legend]");
+    const downloadBtn = container.querySelector("[data-erd-download]") as HTMLElement;
+    const appName = container.getAttribute("data-app-name") || "app";
     let diagramRendered = false;
 
     tabs.forEach((tab) => {
@@ -424,11 +439,36 @@ for (const ref of refs) {
 
         legend?.classList.toggle("hidden", target !== "view");
 
+        if (downloadBtn) {
+          if (target === "diagram") {
+            downloadBtn.classList.remove("hidden");
+            downloadBtn.classList.add("inline-flex");
+          } else {
+            downloadBtn.classList.add("hidden");
+            downloadBtn.classList.remove("inline-flex");
+          }
+        }
+
         if (target === "diagram" && !diagramRendered) {
           diagramRendered = true;
           renderErd();
         }
       });
+    });
+
+    downloadBtn?.addEventListener("click", () => {
+      const svgEl = container.querySelector("[data-erd-container] svg");
+      if (!svgEl) return;
+      const svgData = new XMLSerializer().serializeToString(svgEl);
+      const blob = new Blob([svgData], { type: "image/svg+xml" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${appName}-mermaid.svg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     });
 
     // Accordion
