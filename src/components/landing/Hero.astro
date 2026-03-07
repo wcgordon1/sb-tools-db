@@ -4,18 +4,27 @@ import Text from "@/components/fundations/elements/Text.astro";
 import Wrapper from "@/components/fundations/containers/Wrapper.astro";
 ---
 
-<section>
-  <Wrapper variant="standard" class="py-24   lg:py-48">
+<section class="relative overflow-hidden">
+  <div
+    class="absolute inset-0 pointer-events-none text-base-500 dark:text-base-500"
+    style="
+      background-image: radial-gradient(circle, currentColor 1.5px, transparent 1.5px);
+      background-size: 28px 28px;
+      -webkit-mask-image: linear-gradient(to bottom right, transparent 10%, rgba(0,0,0,0.4) 45%, rgba(0,0,0,0.8) 100%);
+      mask-image: linear-gradient(to bottom right, transparent 10%, rgba(0,0,0,0.4) 45%, rgba(0,0,0,0.8) 100%);
+    "
+  ></div>
+  <Wrapper variant="standard" class="relative z-10 py-24 lg:py-48">
     <div class="overflow-hidden">
       <h1
-        class="text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-9xl font-bold tracking-tight dark:text-white text-black mb-4"
+        class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-bold tracking-tight dark:text-white text-black mb-4"
       >
         StarterBuild
       </h1>
       <Text
         tag="p"
         variant="displayMD"
-        class="dark:text-white xl:text-5xl tracking-tight font-medium text-black text-balance"
+        class="dark:text-white xl:text-3xl tracking-tight font-medium text-black text-balance"
       >
         we build internet businesses.
       </Text>
