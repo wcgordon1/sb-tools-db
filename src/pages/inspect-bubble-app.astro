@@ -9,6 +9,7 @@ import ColorPalette from "@/components/inspect/ColorPalette.astro";
 import PageList from "@/components/inspect/PageList.astro";
 import ApiRoutes from "@/components/inspect/ApiRoutes.astro";
 import ConsoleMessages from "@/components/inspect/ConsoleMessages.astro";
+import AppOverview from "@/components/inspect/AppOverview.astro";
 import { inspectUrl } from "@/lib/worker/client";
 import { deriveCallerId } from "@/lib/worker/caller-id";
 import { saveInspectionResult } from "@/lib/worker/storage";
@@ -59,6 +60,8 @@ const colors = inspectionData?.colors;
 const pages = inspectionData?.pages;
 const debugMeta = inspectionData?.debugMeta;
 const consoleMessages = inspectionData?.consoleMessages ?? [];
+const totalFields = database?.types?.reduce((sum: number, t: any) => sum + t.fields.length, 0) ?? 0;
+const activeColorsCount = colors?.["%del:false"]?.length ?? 0;
 ---
 
 <BaseLayout
@@ -290,6 +293,20 @@ const consoleMessages = inspectionData?.consoleMessages ?? [];
             debugMeta={debugMeta}
             submittedUrl={inspectionData.submittedUrl}
             finalUrl={inspectionData.finalUrl}
+          />
+        </Wrapper>
+      </section>
+
+      <!-- App Overview -->
+      <section>
+        <Wrapper variant="standard" class="pb-16">
+          <AppOverview
+            typesCount={database.types.length}
+            fieldsCount={totalFields}
+            refsCount={database.refs.length}
+            pagesCount={pages.items.length}
+            optionSetsCount={optionSets.items?.length ?? 0}
+            colorsCount={activeColorsCount}
           />
         </Wrapper>
       </section>

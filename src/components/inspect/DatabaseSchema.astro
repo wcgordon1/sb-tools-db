@@ -41,6 +41,81 @@ const refs = database.refs ?? [];
 const dbml = database.dbml ?? "";
 const totalFields = types.reduce((sum: number, t: DataType) => sum + t.fields.length, 0);
 
+// ── Stats computations ────────────────────────────────────────────────────
+interface FieldTypeCategory {
+  key: string;
+  label: string;
+  count: number;
+  color: string;
+  dotColor: string;
+}
+
+function categorizeField(field: Field): string {
+  if (field.isRelationship) return "relationship";
+  switch (field.baseType) {
+    case "text": return "text";
+    case "number": return "number";
+    case "boolean": return "boolean";
+    case "date": return "date";
+    case "image":
+    case "file": return "file";
+    default:
+      if (field.baseType.startsWith("option.")) return "option";
+      return "other";
+  }
+}
+
+const fieldCategoryConfig: Record<string, { label: string; color: string; dotColor: string }> = {
+  text: { label: "text", color: "bg-emerald-500", dotColor: "bg-emerald-500" },
+  number: { label: "number", color: "bg-blue-500", dotColor: "bg-blue-500" },
+  boolean: { label: "boolean", color: "bg-purple-500", dotColor: "bg-purple-500" },
+  date: { label: "date", color: "bg-rose-500", dotColor: "bg-rose-500" },
+  file: { label: "file/image", color: "bg-cyan-500", dotColor: "bg-cyan-500" },
+  option: { label: "option set", color: "bg-orange-500", dotColor: "bg-orange-500" },
+  relationship: { label: "relationship", color: "bg-amber-500", dotColor: "bg-amber-500" },
+  other: { label: "other", color: "bg-base-400 dark:bg-base-600", dotColor: "bg-base-400 dark:bg-base-600" },
+};
+
+const categoryOrder = ["text", "number", "boolean", "date", "file", "option", "relationship", "other"];
+
+const fieldCountsByCategory = new Map<string, number>();
+for (const type of types) {
+  for (const field of type.fields) {
+    const cat = categorizeField(field);
+    fieldCountsByCategory.set(cat, (fieldCountsByCategory.get(cat) ?? 0) + 1);
+  }
+}
+
+const fieldTypeCategories: FieldTypeCategory[] = categoryOrder
+  .map((key) => ({
+    key,
+    ...fieldCategoryConfig[key],
+    count: fieldCountsByCategory.get(key) ?? 0,
+  }))
+  .filter((c) => c.count > 0);
+
+const typesByFieldCount = [...types]
+  .sort((a, b) => b.fields.length - a.fields.length)
+  .slice(0, 5);
+
+const typeRelCounts = types.map((t) => {
+  const incoming = refs.filter((r) => r.toType === t.name).length;
+  const outgoing = refs.filter((r) => r.fromType === t.name).length;
+  return { name: t.name, count: incoming + outgoing };
+});
+
+const typesByRelCount = [...typeRelCounts]
+  .sort((a, b) => b.count - a.count)
+  .filter((t) => t.count > 0)
+  .slice(0, 5);
+
+const typesWithRels = new Set<string>();
+for (const ref of refs) {
+  typesWithRels.add(ref.fromType);
+  typesWithRels.add(ref.toType);
+}
+const orphanTypes = types.filter((t) => !typesWithRels.has(t.name));
+
 function getFieldTypeLabel(field: Field): string {
   if (field.isList) return `list of ${field.baseType}`;
   return field.baseType;
@@ -189,6 +264,13 @@ for (const ref of refs) {
         data-active="false"
       >
         DBML
+      </button>
+      <button
+        class="text-sm font-medium dark:text-base-500 text-base-400 border-b-2 border-transparent pb-1 hover:dark:text-base-300 hover:text-base-600 transition-all duration-200 cursor-pointer"
+        data-tab="stats"
+        data-active="false"
+      >
+        Stats
       </button>
     </div>
 
@@ -414,6 +496,123 @@ for (const ref of refs) {
       <div class="overflow-auto max-h-128 p-4 pr-20">
         <pre class="text-xs font-mono leading-relaxed dark:text-base-300 text-base-600 whitespace-pre">{dbml}</pre>
       </div>
+    </div>
+  </div>
+
+  <!-- Stats Panel -->
+  <div data-db-panel="stats" class="hidden">
+    <div class="flex flex-col gap-8">
+      <!-- Field Type Distribution -->
+      <div class="flex flex-col gap-4">
+        <div>
+          <Text tag="h3" variant="textBase" class="dark:text-white text-base-900 font-medium">
+            field type distribution
+          </Text>
+          <Text tag="p" variant="textXS" class="dark:text-base-500 text-base-400 mt-0.5">
+            {totalFields} fields across {types.length} data types
+          </Text>
+        </div>
+
+        <!-- Stacked bar -->
+        <div class="h-3 rounded-full overflow-hidden flex">
+          {fieldTypeCategories.map((cat) => (
+            <div
+              class={cat.color}
+              style={`width: ${((cat.count / totalFields) * 100).toFixed(1)}%`}
+              title={`${cat.label}: ${cat.count} (${((cat.count / totalFields) * 100).toFixed(0)}%)`}
+            />
+          ))}
+        </div>
+
+        <!-- Legend with counts -->
+        <div class="flex flex-wrap gap-x-5 gap-y-2">
+          {fieldTypeCategories.map((cat) => (
+            <span class="flex items-center gap-1.5 text-xs">
+              <span class={`size-2 rounded-full ${cat.dotColor}`} />
+              <span class="dark:text-base-400 text-base-500">{cat.label}</span>
+              <span class="dark:text-base-300 text-base-600 font-medium tabular-nums">{cat.count}</span>
+              <span class="dark:text-base-600 text-base-400">({((cat.count / totalFields) * 100).toFixed(0)}%)</span>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <!-- Most Connected Types + Largest Types (side by side) -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-8">
+        <!-- Most Connected Types -->
+        {typesByRelCount.length > 0 && (
+          <div class="flex flex-col gap-3">
+            <Text tag="h3" variant="textBase" class="dark:text-white text-base-900 font-medium">
+              most connected types
+            </Text>
+            <div class="flex flex-col divide-y divide-base-100 dark:divide-base-800/50">
+              {typesByRelCount.map((t, i) => (
+                <div class="flex items-center justify-between py-2">
+                  <div class="flex items-center gap-3 min-w-0">
+                    <span class="text-base-400 dark:text-base-600 text-xs font-mono tabular-nums w-5 shrink-0 text-right">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <span class="dark:text-base-300 text-base-700 text-sm font-medium truncate">
+                      {t.name}
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-1.5 shrink-0">
+                    <span class="size-1.5 rounded-full bg-amber-500" />
+                    <span class="text-xs dark:text-base-500 text-base-400 tabular-nums">
+                      {t.count} {t.count === 1 ? "rel" : "rels"}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <!-- Largest Types -->
+        <div class="flex flex-col gap-3">
+          <Text tag="h3" variant="textBase" class="dark:text-white text-base-900 font-medium">
+            largest types
+          </Text>
+          <div class="flex flex-col divide-y divide-base-100 dark:divide-base-800/50">
+            {typesByFieldCount.map((t, i) => (
+              <div class="flex items-center justify-between py-2">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="text-base-400 dark:text-base-600 text-xs font-mono tabular-nums w-5 shrink-0 text-right">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <span class="dark:text-base-300 text-base-700 text-sm font-medium truncate">
+                    {t.name}
+                  </span>
+                </div>
+                <span class="text-xs dark:text-base-500 text-base-400 tabular-nums shrink-0">
+                  {t.fields.length} {t.fields.length === 1 ? "field" : "fields"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <!-- Orphan Types -->
+      {orphanTypes.length > 0 && (
+        <div class="flex flex-col gap-3">
+          <div>
+            <Text tag="h3" variant="textBase" class="dark:text-white text-base-900 font-medium">
+              orphan types
+            </Text>
+            <Text tag="p" variant="textXS" class="dark:text-base-500 text-base-400 mt-0.5">
+              Data types with no relationships to other types
+            </Text>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            {orphanTypes.map((t) => (
+              <span class="rounded-full bg-base-200/50 dark:bg-base-800/50 px-2.5 py-1 text-xs dark:text-base-400 text-base-500 ring-1 ring-base-200 dark:ring-base-800">
+                {t.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   </div>
 </div>

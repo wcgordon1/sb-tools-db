@@ -1,0 +1,69 @@
+---
+import Text from "@/components/fundations/elements/Text.astro";
+
+interface Props {
+  typesCount: number;
+  fieldsCount: number;
+  refsCount: number;
+  pagesCount: number;
+  optionSetsCount: number;
+  colorsCount: number;
+}
+
+const { typesCount, fieldsCount, refsCount, pagesCount, optionSetsCount, colorsCount } = Astro.props;
+
+function getComplexityTier(types: number): { label: string; description: string } {
+  if (types >= 50) return { label: "Enterprise", description: "Large-scale application with extensive data modeling" };
+  if (types >= 25) return { label: "Complex", description: "Feature-rich application with significant data architecture" };
+  if (types >= 10) return { label: "Medium", description: "Standard application with moderate data complexity" };
+  return { label: "Light", description: "Lean application with a focused data model" };
+}
+
+const tier = getComplexityTier(typesCount);
+
+const stats = [
+  { label: "Data Types", value: typesCount },
+  { label: "Fields", value: fieldsCount },
+  { label: "Relationships", value: refsCount },
+  { label: "Pages", value: pagesCount },
+  { label: "Option Sets", value: optionSetsCount },
+  { label: "Colors", value: colorsCount },
+];
+---
+
+<div class="flex flex-col gap-6">
+  <div>
+    <Text
+      tag="h2"
+      variant="displaySM"
+      class="dark:text-white text-base-900 font-medium tracking-tighter"
+    >
+      app overview
+    </Text>
+    <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500 mt-1">
+      High-level breakdown of the application's structure
+    </Text>
+  </div>
+
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+    {stats.map((stat) => (
+      <div class="rounded-lg border border-base-200 dark:border-base-800 p-4">
+        <Text tag="span" variant="textXS" class="dark:text-base-500 text-base-400 uppercase tracking-wider font-medium">
+          {stat.label}
+        </Text>
+        <p class="text-2xl font-semibold dark:text-white text-base-900 mt-1 tabular-nums tracking-tight">
+          {stat.value}
+        </p>
+      </div>
+    ))}
+  </div>
+
+  <div class="flex items-center gap-3">
+    <span class="inline-flex items-center rounded-full bg-base-200 dark:bg-base-800 px-2.5 py-0.5 text-xs font-medium dark:text-base-300 text-base-600">
+      {tier.label}
+    </span>
+    <Text tag="span" variant="textXS" class="dark:text-base-500 text-base-400">
+      {tier.description}
+    </Text>
+  </div>
+</div>
