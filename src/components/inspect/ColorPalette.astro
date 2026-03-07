@@ -70,13 +70,21 @@ function isLightColor(rgba: string): boolean {
       return (
         <div class="flex flex-col gap-2">
           <div
-            class="aspect-4/3 rounded-lg ring-1 ring-base-200 dark:ring-base-700 flex items-end p-2"
+            data-color-swatch
+            data-hex={hex}
+            class="group/swatch relative aspect-4/3 rounded-lg ring-1 ring-base-200 dark:ring-base-700 flex items-end p-2 cursor-pointer transition-shadow hover:ring-2"
             style={`background-color: ${color.rgba};`}
           >
             <span
               class={`text-[10px] font-mono ${light ? "text-black/50" : "text-white/60"}`}
             >
               {hex}
+            </span>
+            <span
+              data-copy-label
+              class={`absolute bottom-2 right-2 text-[10px] font-medium opacity-0 group-hover/swatch:opacity-100 transition-opacity duration-150 ${light ? "text-black/70" : "text-white/70"}`}
+            >
+              Copy
             </span>
           </div>
           <div class="flex flex-col">
@@ -120,3 +128,44 @@ function isLightColor(rgba: string): boolean {
     </div>
   )}
 </div>
+
+<script>
+  function initColorCopy() {
+    const swatches = document.querySelectorAll("[data-color-swatch]");
+    if (!swatches.length) return;
+
+    swatches.forEach((swatch) => {
+      if (swatch.hasAttribute("data-copy-init")) return;
+      swatch.setAttribute("data-copy-init", "true");
+
+      swatch.addEventListener("click", async () => {
+        const hex = swatch.getAttribute("data-hex");
+        const label = swatch.querySelector("[data-copy-label]");
+        if (!hex || !label) return;
+
+        try {
+          await navigator.clipboard.writeText(hex);
+        } catch {
+          const textarea = document.createElement("textarea");
+          textarea.value = hex;
+          textarea.style.position = "fixed";
+          textarea.style.opacity = "0";
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand("copy");
+          document.body.removeChild(textarea);
+        }
+
+        label.textContent = "Copied";
+        label.style.opacity = "1";
+        setTimeout(() => {
+          label.textContent = "Copy";
+          label.style.opacity = "";
+        }, 1500);
+      });
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", initColorCopy);
+  document.addEventListener("astro:page-load", initColorCopy);
+</script>
