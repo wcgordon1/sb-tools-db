@@ -1,0 +1,112 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import Text from "@/components/fundations/elements/Text.astro";
+import Wrapper from "@/components/fundations/containers/Wrapper.astro";
+import BubbleDetection from "@/components/inspect/BubbleDetection.astro";
+import DatabaseSchema from "@/components/inspect/DatabaseSchema.astro";
+import OptionSets from "@/components/inspect/OptionSets.astro";
+import ColorPalette from "@/components/inspect/ColorPalette.astro";
+import PageList from "@/components/inspect/PageList.astro";
+import ConsoleMessages from "@/components/inspect/ConsoleMessages.astro";
+
+import fixtureData from "../../data/inspections/2026-03-07T00-00-43-548Z_app-vows-you.json";
+
+const detection = fixtureData.bubbleDetection;
+const summary = fixtureData.summary;
+const database = fixtureData.database;
+const optionSets = fixtureData.optionSets;
+const colors = fixtureData.colors;
+const pages = fixtureData.pages;
+const debugMeta = fixtureData.debugMeta;
+const consoleMessages = fixtureData.consoleMessages;
+---
+
+<BaseLayout
+  pageTitle="Inspect Bubble App"
+  pageDescription="Analyze the structure of a Bubble.io application"
+>
+  <!-- Header -->
+  <section>
+    <Wrapper variant="standard" class="pt-32 pb-12">
+      <div class="flex flex-col gap-2">
+        <Text
+          tag="h1"
+          variant="displayXL"
+          class="dark:text-white text-base-900 font-medium tracking-tighter mb-2"
+        >
+          app inspector
+        </Text>
+        <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+          <span
+            class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20 w-fit"
+          >
+            <span class="size-1.5 rounded-full bg-emerald-500"></span>
+            Bubble Detected
+          </span>
+          <Text
+            tag="span"
+            variant="textSM"
+            class="dark:text-base-400 text-base-500 break-all"
+          >
+            {fixtureData.finalUrl}
+          </Text>
+          <Text
+            tag="span"
+            variant="textXS"
+            class="dark:text-base-500 text-base-400 whitespace-nowrap"
+          >
+            v{detection.bubble_version} &middot; {detection.app_id}
+          </Text>
+        </div>
+      </div>
+    </Wrapper>
+  </section>
+
+  <!-- Detection Summary -->
+  <section>
+    <Wrapper variant="standard" class="pb-16">
+      <BubbleDetection
+        detection={detection}
+        summary={summary}
+        debugMeta={debugMeta}
+        submittedUrl={fixtureData.submittedUrl}
+        finalUrl={fixtureData.finalUrl}
+      />
+    </Wrapper>
+  </section>
+
+  <!-- Pages -->
+  <section>
+    <Wrapper variant="standard" class="pb-16">
+      <PageList pages={pages} baseUrl={fixtureData.finalUrl} />
+    </Wrapper>
+  </section>
+
+  <!-- Color Palette -->
+  <section>
+    <Wrapper variant="standard" class="pb-16">
+      <ColorPalette colors={colors} />
+    </Wrapper>
+  </section>
+
+  <!-- Database Schema -->
+  <section>
+    <Wrapper variant="standard" class="pb-16">
+      <DatabaseSchema database={database} />
+    </Wrapper>
+  </section>
+
+  <!-- Option Sets -->
+  <section>
+    <Wrapper variant="standard" class="pb-16">
+      <OptionSets optionSets={optionSets} />
+    </Wrapper>
+  </section>
+
+  <!-- Console Messages -->
+  <section>
+    <Wrapper variant="standard" class="pb-24">
+      <ConsoleMessages messages={consoleMessages} />
+    </Wrapper>
+  </section>
+</BaseLayout>

@@ -1,0 +1,115 @@
+---
+import Text from "@/components/fundations/elements/Text.astro";
+
+interface ConsoleMessage {
+  type: string;
+  text: string;
+}
+
+interface Props {
+  messages: ConsoleMessage[];
+}
+
+const { messages } = Astro.props;
+
+const errors = messages.filter((m) => m.type === "error");
+const warnings = messages.filter((m) => m.type === "warning");
+const logs = messages.filter((m) => m.type === "log");
+
+const groups = [
+  {
+    label: "Errors",
+    items: errors,
+    dotClass: "bg-rose-500",
+    textClass: "dark:text-rose-400 text-rose-600",
+    bgClass: "bg-rose-500/5",
+    ringClass: "ring-rose-500/10",
+  },
+  {
+    label: "Warnings",
+    items: warnings,
+    dotClass: "bg-amber-500",
+    textClass: "dark:text-amber-400 text-amber-600",
+    bgClass: "bg-amber-500/5",
+    ringClass: "ring-amber-500/10",
+  },
+  {
+    label: "Logs",
+    items: logs,
+    dotClass: "bg-base-400 dark:bg-base-600",
+    textClass: "dark:text-base-400 text-base-500",
+    bgClass: "bg-base-500/5",
+    ringClass: "ring-base-500/10",
+  },
+].filter((g) => g.items.length > 0);
+---
+
+<div class="flex flex-col gap-6">
+  <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <Text
+        tag="h2"
+        variant="displaySM"
+        class="dark:text-white text-base-900 font-medium tracking-tighter"
+      >
+        console output
+      </Text>
+      <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500 mt-1">
+        {messages.length} messages captured during inspection
+      </Text>
+    </div>
+
+    <!-- Counts -->
+    <div class="flex items-center gap-3 text-xs">
+      {errors.length > 0 && (
+        <span class="flex items-center gap-1.5">
+          <span class="size-2 rounded-full bg-rose-500" />
+          <span class="dark:text-base-400 text-base-500">{errors.length} errors</span>
+        </span>
+      )}
+      {warnings.length > 0 && (
+        <span class="flex items-center gap-1.5">
+          <span class="size-2 rounded-full bg-amber-500" />
+          <span class="dark:text-base-400 text-base-500">{warnings.length} warnings</span>
+        </span>
+      )}
+      {logs.length > 0 && (
+        <span class="flex items-center gap-1.5">
+          <span class="size-2 rounded-full bg-base-400 dark:bg-base-600" />
+          <span class="dark:text-base-400 text-base-500">{logs.length} logs</span>
+        </span>
+      )}
+    </div>
+  </div>
+
+  <!-- Message Groups -->
+  <div class="flex flex-col gap-6">
+    {groups.map((group) => (
+      <div class="flex flex-col gap-2">
+        <div class="flex items-center gap-2">
+          <span class={`size-2 rounded-full ${group.dotClass}`} />
+          <Text tag="span" variant="textXS" class="dark:text-base-500 text-base-400 uppercase tracking-wider font-medium">
+            {group.label} ({group.items.length})
+          </Text>
+        </div>
+        <div class="flex flex-col gap-1.5">
+          {group.items.map((msg) => (
+            <div class={`rounded-md ${group.bgClass} ring-1 ${group.ringClass} px-3 py-2`}>
+              <p class={`text-xs font-mono ${group.textClass} break-all leading-relaxed`}>
+                {msg.text}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    ))}
+  </div>
+
+  {messages.length === 0 && (
+    <div class="rounded-lg border border-base-200 dark:border-base-800 p-8 text-center">
+      <Text tag="p" variant="textSM" class="dark:text-base-500 text-base-400">
+        No console messages captured
+      </Text>
+    </div>
+  )}
+</div>

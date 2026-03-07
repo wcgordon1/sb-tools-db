@@ -1,0 +1,150 @@
+---
+import Text from "@/components/fundations/elements/Text.astro";
+
+interface Props {
+  detection: {
+    bubble_version?: number;
+    bubble_page_name?: string;
+    has_app?: boolean;
+    app_id?: string;
+    has_app_styles?: boolean;
+    has_client_safe?: boolean;
+    isLikelyBubble: boolean;
+    [key: string]: unknown;
+  };
+  summary: {
+    hasApp?: boolean;
+    appKeys?: string[];
+    warnings?: string[];
+  };
+  debugMeta: {
+    hasUserTypes?: boolean;
+    hasOptionSets?: boolean;
+    hasPagesObject?: boolean;
+    hasColorsObject?: boolean;
+  };
+  submittedUrl: string;
+  finalUrl: string;
+}
+
+const { detection, summary, debugMeta, submittedUrl, finalUrl } = Astro.props;
+
+const didRedirect = submittedUrl !== finalUrl;
+const appKeys = summary.appKeys ?? [];
+
+const checks = [
+  { label: "App runtime", ok: detection.has_app ?? false },
+  { label: "App styles", ok: detection.has_app_styles ?? false },
+  { label: "Client safe data", ok: detection.has_client_safe ?? false },
+  { label: "User types", ok: debugMeta.hasUserTypes ?? false },
+  { label: "Option sets", ok: debugMeta.hasOptionSets ?? false },
+  { label: "Pages object", ok: debugMeta.hasPagesObject ?? false },
+  { label: "Colors object", ok: debugMeta.hasColorsObject ?? false },
+];
+---
+
+<div class="flex flex-col gap-6">
+  <div>
+    <Text
+      tag="h2"
+      variant="displaySM"
+      class="dark:text-white text-base-900 font-medium tracking-tighter"
+    >
+      detection summary
+    </Text>
+    <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500 mt-1">
+      What the inspector found in this Bubble application
+    </Text>
+  </div>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <!-- App ID -->
+    <div class="rounded-lg border border-base-200 dark:border-base-800 p-4">
+      <Text tag="span" variant="textXS" class="dark:text-base-500 text-base-400 uppercase tracking-wider font-medium">
+        App ID
+      </Text>
+      <Text tag="p" variant="textBase" class="dark:text-white text-base-900 font-medium mt-1">
+        {detection.app_id ?? "unknown"}
+      </Text>
+    </div>
+
+    <!-- Bubble Version -->
+    <div class="rounded-lg border border-base-200 dark:border-base-800 p-4">
+      <Text tag="span" variant="textXS" class="dark:text-base-500 text-base-400 uppercase tracking-wider font-medium">
+        Bubble Version
+      </Text>
+      <Text tag="p" variant="textBase" class="dark:text-white text-base-900 font-medium mt-1">
+        v{detection.bubble_version ?? "?"}
+      </Text>
+    </div>
+
+    <!-- Landing Page -->
+    <div class="rounded-lg border border-base-200 dark:border-base-800 p-4">
+      <Text tag="span" variant="textXS" class="dark:text-base-500 text-base-400 uppercase tracking-wider font-medium">
+        Landing Page
+      </Text>
+      <Text tag="p" variant="textBase" class="dark:text-white text-base-900 font-medium mt-1">
+        {detection.bubble_page_name ?? "index"}
+      </Text>
+    </div>
+
+    <!-- App Keys -->
+    <div class="rounded-lg border border-base-200 dark:border-base-800 p-4">
+      <Text tag="span" variant="textXS" class="dark:text-base-500 text-base-400 uppercase tracking-wider font-medium">
+        Runtime Keys
+      </Text>
+      <Text tag="p" variant="textBase" class="dark:text-white text-base-900 font-medium mt-1">
+        {appKeys.length}
+      </Text>
+    </div>
+  </div>
+
+  <!-- Redirect Notice -->
+  {didRedirect && (
+    <div class="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+      <span class="text-amber-500 text-sm mt-0.5 shrink-0">&#8594;</span>
+      <div>
+        <Text tag="p" variant="textSM" class="text-amber-700 dark:text-amber-400 font-medium">
+          URL redirected
+        </Text>
+        <Text tag="p" variant="textXS" class="text-amber-600/80 dark:text-amber-500/80 mt-0.5">
+          {submittedUrl} &rarr; {finalUrl}
+        </Text>
+      </div>
+    </div>
+  )}
+
+  <!-- Detection Checks -->
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2">
+    {checks.map((check) => (
+      <div class="flex items-center gap-2 py-1">
+        {check.ok ? (
+          <span class="size-4 rounded-full bg-emerald-500/10 flex items-center justify-center">
+            <svg class="size-2.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+          </span>
+        ) : (
+          <span class="size-4 rounded-full bg-base-200 dark:bg-base-800 flex items-center justify-center">
+            <span class="size-1.5 rounded-full bg-base-400 dark:bg-base-600" />
+          </span>
+        )}
+        <span class={`text-xs ${check.ok ? "dark:text-base-300 text-base-700" : "dark:text-base-500 text-base-400"}`}>
+          {check.label}
+        </span>
+      </div>
+    ))}
+  </div>
+
+  <!-- Warnings -->
+  {(summary.warnings ?? []).length > 0 && (
+    <div class="flex flex-col gap-1">
+      {summary.warnings!.map((w) => (
+        <div class="flex items-start gap-2 text-xs text-amber-600 dark:text-amber-400">
+          <span class="mt-0.5 shrink-0">!</span>
+          <span>{w}</span>
+        </div>
+      ))}
+    </div>
+  )}
+</div>

@@ -1,0 +1,84 @@
+---
+import Text from "@/components/fundations/elements/Text.astro";
+
+interface Props {
+  pages: {
+    items: string[];
+    count: number;
+    warnings?: string[];
+  };
+  baseUrl: string;
+}
+
+const { pages, baseUrl } = Astro.props;
+const items = pages.items ?? [];
+
+const knownPageTypes: Record<string, { label: string; colorClass: string }> = {
+  index: { label: "Home", colorClass: "bg-emerald-500" },
+  "404": { label: "Error", colorClass: "bg-rose-500" },
+  admin: { label: "Admin", colorClass: "bg-purple-500" },
+  auth: { label: "Auth", colorClass: "bg-amber-500" },
+  login: { label: "Auth", colorClass: "bg-amber-500" },
+  signup: { label: "Auth", colorClass: "bg-amber-500" },
+  reset_pw: { label: "Auth", colorClass: "bg-amber-500" },
+  logout: { label: "Auth", colorClass: "bg-amber-500" },
+  confirmation: { label: "Auth", colorClass: "bg-amber-500" },
+  onboarding: { label: "Onboarding", colorClass: "bg-blue-500" },
+  legal: { label: "Legal", colorClass: "bg-base-500" },
+  chatbot: { label: "Feature", colorClass: "bg-cyan-500" },
+  settings: { label: "Settings", colorClass: "bg-base-500" },
+};
+
+function getPageMeta(page: string) {
+  return knownPageTypes[page] ?? { label: "Page", colorClass: "bg-base-400 dark:bg-base-600" };
+}
+---
+
+<div class="flex flex-col gap-6">
+  <div>
+    <Text
+      tag="h2"
+      variant="displaySM"
+      class="dark:text-white text-base-900 font-medium tracking-tighter"
+    >
+      pages
+    </Text>
+    <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500 mt-1">
+      {items.length} pages detected
+    </Text>
+  </div>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+    {items.map((page, i) => {
+      const meta = getPageMeta(page);
+      const url = page === "index" ? baseUrl : `${baseUrl}${page}`;
+      return (
+        <div class="flex items-center gap-3 rounded-lg border border-base-200 dark:border-base-800 p-3 group">
+          <span class="text-base-400 dark:text-base-600 text-xs font-mono tabular-nums w-5 shrink-0 text-right">
+            {String(i + 1).padStart(2, "0")}
+          </span>
+          <span class={`size-2 rounded-full shrink-0 ${meta.colorClass}`} />
+          <div class="flex flex-col min-w-0 flex-1">
+            <span class="dark:text-white text-base-900 font-medium text-sm truncate">
+              /{page === "index" ? "" : page}
+            </span>
+            <span class="text-[10px] dark:text-base-500 text-base-400">
+              {meta.label}
+            </span>
+          </div>
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-base-300 dark:text-base-700 hover:text-base-500 dark:hover:text-base-400 transition-colors shrink-0"
+            title={`Open ${url}`}
+          >
+            <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+            </svg>
+          </a>
+        </div>
+      );
+    })}
+  </div>
+</div>

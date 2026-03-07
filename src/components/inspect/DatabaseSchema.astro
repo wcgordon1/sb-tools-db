@@ -1,0 +1,267 @@
+---
+import Text from "@/components/fundations/elements/Text.astro";
+
+interface Field {
+  key: string;
+  displayName: string;
+  rawType: string;
+  isList: boolean;
+  baseType: string;
+  isRelationship: boolean;
+  dbType: string;
+}
+
+interface DataType {
+  key: string;
+  name: string;
+  fields: Field[];
+}
+
+interface Ref {
+  fromType: string;
+  fromField: string;
+  toType: string;
+  isList: boolean;
+}
+
+interface Props {
+  database: {
+    types: DataType[];
+    refs: Ref[];
+    dbml?: string;
+    warnings?: string[];
+  };
+}
+
+const { database } = Astro.props;
+const types = database.types ?? [];
+const refs = database.refs ?? [];
+
+function getFieldTypeLabel(field: Field): string {
+  if (field.isList) return `list of ${field.baseType}`;
+  return field.baseType;
+}
+
+function getFieldTypeColor(field: Field): string {
+  if (field.isRelationship) return "text-amber-600 dark:text-amber-400";
+  switch (field.baseType) {
+    case "text":
+      return "text-emerald-600 dark:text-emerald-400";
+    case "number":
+      return "text-blue-600 dark:text-blue-400";
+    case "boolean":
+      return "text-purple-600 dark:text-purple-400";
+    case "date":
+      return "text-rose-600 dark:text-rose-400";
+    case "image":
+    case "file":
+      return "text-cyan-600 dark:text-cyan-400";
+    default:
+      if (field.baseType.startsWith("option."))
+        return "text-orange-600 dark:text-orange-400";
+      if (field.baseType.startsWith("custom."))
+        return "text-amber-600 dark:text-amber-400";
+      return "dark:text-base-400 text-base-500";
+  }
+}
+
+function getIncomingRefs(typeName: string): Ref[] {
+  return refs.filter((r) => r.toType === typeName);
+}
+
+function getOutgoingRefs(typeName: string): Ref[] {
+  return refs.filter((r) => r.fromType === typeName);
+}
+---
+
+<div class="flex flex-col gap-8">
+  <!-- Section Header -->
+  <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <Text
+        tag="h2"
+        variant="displaySM"
+        class="dark:text-white text-base-900 font-medium tracking-tighter"
+      >
+        database schema
+      </Text>
+      <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500 mt-1">
+        {types.length} data types &middot; {refs.length} relationships
+      </Text>
+    </div>
+
+    <!-- Legend -->
+    <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+      <span class="flex items-center gap-1.5">
+        <span class="size-2 rounded-full bg-emerald-500"></span>
+        <span class="dark:text-base-400 text-base-500">text</span>
+      </span>
+      <span class="flex items-center gap-1.5">
+        <span class="size-2 rounded-full bg-blue-500"></span>
+        <span class="dark:text-base-400 text-base-500">number</span>
+      </span>
+      <span class="flex items-center gap-1.5">
+        <span class="size-2 rounded-full bg-purple-500"></span>
+        <span class="dark:text-base-400 text-base-500">boolean</span>
+      </span>
+      <span class="flex items-center gap-1.5">
+        <span class="size-2 rounded-full bg-rose-500"></span>
+        <span class="dark:text-base-400 text-base-500">date</span>
+      </span>
+      <span class="flex items-center gap-1.5">
+        <span class="size-2 rounded-full bg-cyan-500"></span>
+        <span class="dark:text-base-400 text-base-500">file/image</span>
+      </span>
+      <span class="flex items-center gap-1.5">
+        <span class="size-2 rounded-full bg-orange-500"></span>
+        <span class="dark:text-base-400 text-base-500">option set</span>
+      </span>
+      <span class="flex items-center gap-1.5">
+        <span class="size-2 rounded-full bg-amber-500"></span>
+        <span class="dark:text-base-400 text-base-500">relationship</span>
+      </span>
+    </div>
+  </div>
+
+  <!-- Type Cards -->
+  <div class="flex flex-col divide-y divide-base-200 dark:divide-base-800 border-y border-base-200 dark:border-base-800">
+    {types.map((type, typeIndex) => {
+      const incoming = getIncomingRefs(type.name);
+      const outgoing = getOutgoingRefs(type.name);
+      const relationshipFields = type.fields.filter((f) => f.isRelationship);
+      const dataFields = type.fields.filter((f) => !f.isRelationship);
+
+      return (
+        <details class="group" data-type-card>
+          <summary class="flex items-center justify-between py-4 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+            <div class="flex items-center gap-3 min-w-0">
+              <span class="text-base-400 dark:text-base-600 text-xs font-mono tabular-nums w-6 shrink-0 text-right">
+                {String(typeIndex + 1).padStart(2, "0")}
+              </span>
+              <span class="dark:text-white text-base-900 font-medium tracking-tight text-sm truncate">
+                {type.name}
+              </span>
+              <span class="text-base-400 dark:text-base-600 text-xs shrink-0">
+                {type.fields.length} {type.fields.length === 1 ? "field" : "fields"}
+              </span>
+              {relationshipFields.length > 0 && (
+                <span class="text-amber-500/70 text-xs shrink-0">
+                  {relationshipFields.length} {relationshipFields.length === 1 ? "rel" : "rels"}
+                </span>
+              )}
+            </div>
+            <svg
+              class="size-4 text-base-400 dark:text-base-600 shrink-0 transition-transform duration-200 group-open:rotate-180"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke-width="2"
+              stroke="currentColor"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+            </svg>
+          </summary>
+
+          <div class="pb-6 pl-9">
+            <!-- Fields Table -->
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="text-left text-xs text-base-400 dark:text-base-600 uppercase tracking-wider">
+                    <th class="pb-2 pr-4 font-medium">Field</th>
+                    <th class="pb-2 pr-4 font-medium">Type</th>
+                    <th class="pb-2 pr-4 font-medium hidden sm:table-cell">DB Type</th>
+                    <th class="pb-2 font-medium hidden md:table-cell">Flags</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-base-100 dark:divide-base-800/50">
+                  {type.fields.map((field) => (
+                    <tr>
+                      <td class="py-1.5 pr-4">
+                        <span class="dark:text-base-300 text-base-700 text-sm">
+                          {field.displayName}
+                        </span>
+                      </td>
+                      <td class="py-1.5 pr-4">
+                        <span class={`text-xs font-mono ${getFieldTypeColor(field)}`}>
+                          {getFieldTypeLabel(field)}
+                        </span>
+                      </td>
+                      <td class="py-1.5 pr-4 hidden sm:table-cell">
+                        <span class="text-xs font-mono dark:text-base-500 text-base-400">
+                          {field.dbType}
+                        </span>
+                      </td>
+                      <td class="py-1.5 hidden md:table-cell">
+                        <div class="flex gap-1.5">
+                          {field.isList && (
+                            <span class="inline-flex items-center rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/20">
+                              list
+                            </span>
+                          )}
+                          {field.isRelationship && (
+                            <span class="inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400 ring-1 ring-amber-500/20">
+                              rel
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Relationships summary -->
+            {(incoming.length > 0 || outgoing.length > 0) && (
+              <div class="mt-4 pt-4 border-t border-base-100 dark:border-base-800/50">
+                <span class="text-xs font-medium uppercase tracking-wider text-base-400 dark:text-base-600">
+                  Relationships
+                </span>
+                <div class="mt-2 flex flex-col gap-1">
+                  {outgoing.map((ref) => (
+                    <span class="text-xs dark:text-base-400 text-base-500">
+                      <span class="font-mono text-amber-600 dark:text-amber-400">{ref.fromField}</span>
+                      <span class="dark:text-base-600 text-base-300 mx-1">&rarr;</span>
+                      <span class="dark:text-base-300 text-base-700">{ref.toType}</span>
+                      {ref.isList && (
+                        <span class="ml-1 text-blue-500/70">(many)</span>
+                      )}
+                    </span>
+                  ))}
+                  {incoming.map((ref) => (
+                    <span class="text-xs dark:text-base-400 text-base-500">
+                      <span class="dark:text-base-300 text-base-700">{ref.fromType}</span>
+                      <span class="dark:text-base-600 text-base-300 mx-1">&rarr;</span>
+                      <span class="font-mono text-amber-600 dark:text-amber-400">{ref.fromField}</span>
+                      {ref.isList && (
+                        <span class="ml-1 text-blue-500/70">(many)</span>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </details>
+      );
+    })}
+  </div>
+</div>
+
+<script>
+  document.addEventListener("astro:page-load", () => {
+    const cards = document.querySelectorAll("[data-type-card]");
+    cards.forEach((card) => {
+      card.addEventListener("toggle", () => {
+        // Close other open cards when one is opened (accordion behavior)
+        if ((card as HTMLDetailsElement).open) {
+          cards.forEach((other) => {
+            if (other !== card && (other as HTMLDetailsElement).open) {
+              (other as HTMLDetailsElement).open = false;
+            }
+          });
+        }
+      });
+    });
+  });
+</script>
