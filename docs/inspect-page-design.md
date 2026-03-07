@@ -1,6 +1,6 @@
 # Inspect Bubble App — Page Design & Component Reference
 
-> Full documentation of the `/inspect-bubble-app` page: layout, component architecture, design system, dark mode strategy, interactive behavior, and data contracts.
+> Full documentation of the `/inspect-bubble-app` page: SSR architecture, form UX, component design, dark mode strategy, interactive behavior, and data contracts.
 
 ---
 
@@ -8,10 +8,34 @@
 
 **Route:** `/inspect-bubble-app`
 **File:** `src/pages/inspect-bubble-app.astro`
+**Rendering:** Server-side rendered (`export const prerender = false`) — deployed as a Vercel serverless function
 **Layout:** `BaseLayout` (shared site layout with navigation, theme toggle, etc.)
 **Wrapper:** `Wrapper variant="standard"` (shared max-width container)
 
-The page renders a full inspection report for a Bubble.io application. It currently consumes fixture data from a local JSON file and is designed for zero-change transition to live API data.
+The page has two states controlled by the `?url=` query parameter:
+
+1. **Empty state** (no `?url=`): Shows the form + feature cards explaining what the tool does
+2. **Results state** (`?url=https://...`): Server calls the Bubble Runtime Worker, then renders all inspection components with live data
+
+---
+
+## SSR Architecture
+
+```
+User visits /inspect-bubble-app
+  → No ?url= param
+  → Renders: form + empty state feature cards
+
+User submits URL → client JS navigates to /inspect-bubble-app?url=<encoded>
+  → Astro SSR reads ?url= in frontmatter
+  → Calls inspectUrl() server-side (direct function call, not HTTP)
+  → Calls deriveCallerId() for rate limiting identity
+  → On success: renders all 7 inspect components with live data
+  → On isLikelyBubble=false: shows "Not a Bubble app" notice
+  → On error: shows error message, form stays usable
+```
+
+Key architectural decision: the page calls `inspectUrl()` directly from `src/lib/worker/client.ts` in the frontmatter — no round-trip through the `/api/inspect` route. This avoids an unnecessary HTTP call since we're already on the server.
 
 ---
 
@@ -27,7 +51,7 @@ The design mirrors `src/pages/index.astro` — same `Wrapper`, same `Text` compo
 
 ### 3. Data-Dense Without Clutter
 
-Each component shows summary counts upfront (e.g. "24 data types · 18 relationships") and uses progressive disclosure (expandable accordions, tab views) so users aren't overwhelmed. Only one accordion item is open at a time.
+Each component shows summary counts upfront (e.g. "18 data types · 142 fields · 13 relationships") and uses progressive disclosure (expandable accordions, tab views) so users aren't overwhelmed. Only one accordion item is open at a time.
 
 ### 4. Mobile-First Responsive
 
@@ -41,6 +65,64 @@ Components are tailored to what the data actually means:
 - Colors render as actual swatches with hex codes
 - API routes are purposefully blurred for security
 - Console messages are grouped and color-coded by severity
+
+---
+
+## Form & Input UX
+
+### Input Design
+
+- Rounded input with link icon prefix (`pl-10`, `rounded-xl`)
+- Placeholder: `app.example.com` (protocol added automatically)
+- Search icon button with hover animation (`group-hover:translate-x-0.5`)
+- Icon swaps to spinner during loading
+
+### URL Normalization (client-side)
+
+```javascript
+function normalizeUrl(raw) {
+  // 1. Trim whitespace
+  // 2. Prepend https:// if no protocol
+  // 3. Validate via new URL()
+  // 4. Reject non-http(s) protocols
+  // 5. Reject hostnames without dots (e.g. "localhost")
+  // Return normalized href or null
+}
+```
+
+Invalid URLs show red "Not a valid URL" text for 2 seconds without counting against the try limit.
+
+### Rate Limiting (localStorage)
+
+- `localStorage` key: `inspect-bubble-tries`
+- Stores `{ count: number, resetAt: timestamp }`
+- Max 5 inspections per 24-hour window
+- Counter increments immediately on valid submit (before navigation)
+- Display: "X of 5 inspections remaining" below the input
+- At 0 remaining: button disabled, shows "No inspections remaining (resets in 24h)"
+- Note: this is a client-side soft limit — server-side rate limiting is handled by the worker via caller ID
+
+### Loading State
+
+When the user submits, before the browser navigates to the SSR page:
+- Button text changes to "Inspecting..." with spinner
+- Input and button are disabled
+- A loading skeleton appears below the form:
+  - `rounded-2xl` bordered container, `min-h-80`
+  - Double-ring spinning animation (concentric circles, opposite directions)
+  - "Inspecting application..." heading
+  - Subtitle: "Scanning runtime, database schema, option sets, pages, and more. This usually takes 10–20 seconds."
+  - Three pulsing dots
+  - Four animated step pills: "Detecting runtime", "Extracting schema", "Parsing option sets", "Mapping pages" — staggered `animation-delay` for wave effect
+
+### Empty State (no URL submitted)
+
+Below the form, a 3-column card grid explains what the tool does:
+1. **Database schema** — "Discover every data type, field, and relationship..." (emerald icon)
+2. **Option sets & pages** — "See all static option sets with their attributes..." (blue icon)
+3. **Colors & console** — "Extract the complete color palette with hex values..." (rose icon)
+
+Cards use `rounded-xl border border-base-200 dark:border-base-800 p-6` with colored icon containers (`size-9 rounded-lg bg-{color}-500/10`).
 
 ---
 
@@ -102,12 +184,12 @@ The ERD diagram has full dark mode support via Mermaid's `themeVariables`:
 {
   darkMode: true,
   background: "transparent",
-  primaryColor: "#1e293b",        // slate-800
-  primaryTextColor: "#e2e8f0",    // slate-200
-  primaryBorderColor: "#334155",  // slate-700
-  lineColor: "#475569",           // slate-600
+  primaryColor: "#1e293b",
+  primaryTextColor: "#e2e8f0",
+  primaryBorderColor: "#334155",
+  lineColor: "#475569",
   secondaryColor: "#1e293b",
-  tertiaryColor: "#0f172a",       // slate-900
+  tertiaryColor: "#0f172a",
   fontFamily: "ui-monospace, monospace",
   fontSize: "12px",
 }
@@ -117,11 +199,11 @@ The ERD diagram has full dark mode support via Mermaid's `themeVariables`:
 ```javascript
 {
   background: "transparent",
-  primaryColor: "#f8fafc",        // slate-50
-  primaryTextColor: "#1e293b",    // slate-800
-  primaryBorderColor: "#e2e8f0",  // slate-200
-  lineColor: "#94a3b8",           // slate-400
-  secondaryColor: "#f1f5f9",      // slate-100
+  primaryColor: "#f8fafc",
+  primaryTextColor: "#1e293b",
+  primaryBorderColor: "#e2e8f0",
+  lineColor: "#94a3b8",
+  secondaryColor: "#f1f5f9",
   tertiaryColor: "#ffffff",
   fontFamily: "ui-monospace, monospace",
   fontSize: "12px",
@@ -134,10 +216,29 @@ Theme detection happens at render time: `document.documentElement.classList.cont
 
 ## Page Layout & Spacing
 
+### Empty State (no results)
+
 ```
 ┌─────────────────────────────────────────┐
 │ Header (pt-32 pb-12)                    │
 │   Title: "Bubble app inspector"         │
+│   Subtitle: tool description            │
+│   [URL input] [Inspect button]          │
+│   Tries remaining counter               │
+├─────────────────────────────────────────┤
+│ Feature Cards (pb-24)                   │
+│   [Database schema] [Option sets]       │
+│   [Colors & console]                    │
+└─────────────────────────────────────────┘
+```
+
+### Results State
+
+```
+┌─────────────────────────────────────────┐
+│ Header (pt-32 pb-12)                    │
+│   Title: "Bubble app inspector"         │
+│   [URL input] [Inspect button]          │
 │   Badge: "Bubble Detected"              │
 │   URL + Version + App ID               │
 ├─────────────────────────────────────────┤
@@ -149,6 +250,7 @@ Theme detection happens at render time: `document.documentElement.classList.cont
 ├─────────────────────────────────────────┤
 │ Database Schema (pb-16)                 │
 │   [View] [Diagram] [DBML] tabs          │
+│   [Download SVG] (diagram mode only)    │
 ├─────────────────────────────────────────┤
 │ Option Sets (pb-16)                     │
 ├─────────────────────────────────────────┤
@@ -158,24 +260,26 @@ Theme detection happens at render time: `document.documentElement.classList.cont
 └─────────────────────────────────────────┘
 ```
 
-Each section is a `<section>` with `<Wrapper variant="standard">` and consistent `pb-16` bottom padding (last section uses `pb-24` for extra breathing room).
+Each section is a `<section>` with `<Wrapper variant="standard">` and consistent `pb-16` bottom padding (last section uses `pb-24`).
 
 ---
 
 ## Component Reference
 
-### 1. Header (inline in page)
+### 1. Header + Form (inline in page)
 
-**File:** `src/pages/inspect-bubble-app.astro` (lines 30–63)
+**File:** `src/pages/inspect-bubble-app.astro`
 
-The header is not a separate component. It contains:
+The header and form are inline in the page file (not separate components). Contains:
 
 - **Title**: `displayXL` variant, medium weight, tight tracking
-- **Bubble Detected badge**: Emerald green pill with a pulsing dot. Uses `w-fit` so it doesn't stretch on mobile
-- **URL**: `textSM` variant, `break-all` for long URLs
-- **Version + App ID**: `textXS` variant, `whitespace-nowrap` to prevent mid-word breaks
-
-**Mobile behavior**: The badge, URL, and version stack vertically (`flex-col gap-2`). On `sm+`, they flow horizontally (`sm:flex-row sm:flex-wrap sm:items-center sm:gap-3`).
+- **Subtitle** (empty state only): describes the tool
+- **Form**: input with link icon + button with search icon
+- **Tries counter**: muted text below form
+- **Bubble Detected badge** (results only): emerald green pill with dot, `w-fit`
+- **URL + version** (results only): `textSM` and `textXS` variants
+- **Not a Bubble app notice** (when `isLikelyBubble: false`): amber callout
+- **Error display** (when worker fails): red text inline
 
 ---
 
@@ -195,15 +299,10 @@ The header is not a separate component. It contains:
 ```
 
 **Sections:**
-1. **Stat cards** — 4-column grid (1 col mobile → 2 col sm → 4 col lg): App ID, Bubble Version, Landing Page, Runtime Keys
-2. **Redirect notice** — Amber-bordered callout shown only when `submittedUrl !== finalUrl`
-3. **Detection checks** — 4-column grid of boolean indicators with green checkmarks (pass) or gray dots (fail): App runtime, App styles, Client safe data, User types, Option sets, Pages object, Colors object, API routes
-4. **Warnings** — Amber-colored list of worker warnings
-
-**Design notes:**
-- Stat cards use `rounded-lg border border-base-200 dark:border-base-800 p-4`
-- Labels are `textXS uppercase tracking-wider font-medium` in muted colors
-- Values are `textBase font-medium` in primary text color
+1. **Stat cards** — 4-column grid (1→2→4 cols): App ID, Bubble Version, Landing Page, Runtime Keys
+2. **Redirect notice** — amber callout shown only when `submittedUrl !== finalUrl`
+3. **Detection checks** — 4-column grid of boolean indicators with green checkmarks or gray dots
+4. **Warnings** — amber-colored list of worker warnings
 
 ---
 
@@ -216,12 +315,9 @@ The header is not a separate component. It contains:
 { pages: { items: string[]; count: number; warnings?: string[] }; baseUrl: string }
 ```
 
-**Design:**
-- 3-column card grid (1 col → 2 col sm → 3 col lg)
-- Each card: numbered index (mono), colored dot by category, page path, category label, external link icon
-- Page categories with color mapping: Home (green), Error (rose), Auth (amber), Admin (purple), Onboarding (blue), Feature (cyan), Settings/Legal (gray), default (gray)
-- External link icons appear on hover via the `group` class pattern
-- URLs are constructed from `baseUrl + pageName`
+- 3-column card grid with numbered index, colored dot by category, page path, external link icon
+- Category mapping: Home (green), Error (rose), Auth (amber), Admin (purple), Onboarding (blue), Feature (cyan)
+- External link to Bubble docs next to section title
 
 ---
 
@@ -231,18 +327,13 @@ The header is not a separate component. It contains:
 
 **Props:**
 ```typescript
-{ colors: { "%del:false"?: ColorEntry[]; "%del:true"?: ColorEntry[]; warnings?: string[] } }
+{ colors: { "%del:false"?: ColorEntry[]; "%del:true"?: ColorEntry[] } }
 ```
 
-Where `ColorEntry = { id, "%nm" (name), "%d3" (description), rgba }`.
-
-**Design:**
-- 6-column responsive grid (2 → 3 → 4 → 6 columns)
-- Each swatch: `aspect-4/3 rounded-lg` with the actual RGBA as `background-color`, hex code overlaid
-- Smart text contrast: hex label uses `text-black/50` on light colors, `text-white/60` on dark colors. Luminance threshold: 0.7 via `(0.299R + 0.587G + 0.114B) / 255`
-- Swatch border: `ring-1 ring-base-200 dark:ring-base-700` so swatches with near-white/near-black colors are still visible
-- Below each swatch: color name + description in small text
-- Deleted colors section: shown at 50% opacity with strikethrough names, smaller inline swatches (`size-5 rounded`)
+- 6-column responsive swatch grid with hex codes
+- Smart text contrast via luminance calculation
+- Deleted colors shown at 50% opacity with strikethrough
+- External link to Bubble docs next to section title
 
 ---
 
@@ -252,71 +343,37 @@ Where `ColorEntry = { id, "%nm" (name), "%d3" (description), rgba }`.
 
 **Props:**
 ```typescript
-{ database: { types: DataType[]; refs: Ref[]; dbml?: string; warnings?: string[] } }
+{ database: { types: DataType[]; refs: Ref[]; dbml?: string }; appName?: string }
 ```
 
-This is the most complex component with three interactive views.
+The most complex component with three interactive views + pan/zoom + download.
 
 #### Tab System
 
-Three text-style tab buttons with underline indicator:
-- **View** — Default. Expandable accordion of data type cards
-- **Diagram** — Mermaid ERD (lazy-loaded)
-- **DBML** — Raw DBML text with copy button
-
-Active tab: `dark:text-white text-base-900 border-b-2 border-base-900 dark:border-white`
-Inactive tab: `dark:text-base-500 text-base-400 border-b-2 border-transparent` + hover states
-
-All tabs have `cursor-pointer` and `transition-all duration-200`.
-
-Switching is handled by client-side JavaScript. Panels use `data-db-panel="view|diagram|dbml"` attributes and toggle via `classList.toggle("hidden", ...)`.
+Three tabs: **View** (default), **Diagram** (Mermaid ERD), **DBML** (raw text with copy).
 
 #### View Panel
 
-- Accordion using `<details>` elements — only one open at a time (enforced via `toggle` event listeners)
-- Each card summary: index number (mono, right-aligned, zero-padded), type name, field count, relationship count (amber, shown only if > 0), chevron (rotates 180° when open via `group-open:rotate-180`)
-- Expanded content: field table with columns: Field, Type (color-coded mono), DB Type (hidden on mobile), Flags (list/rel badges, hidden on small screens)
-- Relationship summary below the table: outgoing refs (`→`) and incoming refs with `(many)` indicator for list relationships
+Accordion using `<details>` elements — only one open at a time. Each type shows field count, relationship count, and a field table with color-coded types.
 
-**Field type color coding:**
-
-| Type | Color |
-|------|-------|
-| `text` | Emerald |
-| `number` | Blue |
-| `boolean` | Purple |
-| `date` | Rose |
-| `image` / `file` | Cyan |
-| `option.*` | Orange |
-| `custom.*` (relationship) | Amber |
-| Default | Base gray |
-
-**Legend:** A row of colored dots with labels. Only visible in View mode (hidden when switching to Diagram or DBML via `legend?.classList.toggle("hidden", target !== "view")`).
+Subtitle shows: `{types} data types · {totalFields} fields · {refs} relationships`
 
 #### Diagram Panel
 
-- Lazy-loaded Mermaid library (`await import("mermaid")`)
-- ERD definition generated server-side from `types` and `refs` data
-- Entity names and field names are sanitized (non-word chars removed, spaces → underscores)
-- Field types mapped: text→string, number→int, boolean→bool, date→datetime, relationships→FK, option sets→enum
-- Relationship notation: `}o--||` for one-to-many, `||--||` for one-to-one
-- Loading state: "Rendering diagram…" centered text, replaced by SVG on success
-- Error state: "Failed to render diagram" in rose-500
-
-**Data transfer to client-side:**
-The Mermaid definition is stored in a `<script type="application/json" data-mermaid-src>` tag using `set:html={JSON.stringify(mermaidDef)}`. The client reads it via `JSON.parse(mermaidSrc.textContent)`. This approach avoids Astro's HTML encoding (which broke Mermaid when using `<pre>` tags — `"` was being encoded as `&quot;`).
+- Mermaid loaded from CDN: `https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs` (bypasses Vite dep cache issues)
+- ERD definition generated server-side, passed via `<script type="application/json">` to avoid HTML encoding
+- Field types: relationships use `ref` type with `FK` constraint (not `FK` as type — that's a Mermaid reserved keyword)
+- **Pan & zoom**: scroll-wheel zoom (cursor-centered), click-drag pan, +/- buttons, Reset button
+- Viewport: fixed 600px height, `overflow-hidden`, `cursor: grab`
+- **Download SVG button**: appears only in diagram mode, inline with tabs. Downloads `<appName>-mermaid.svg`
 
 #### DBML Panel
 
-- Raw DBML text in a `<pre>` block with mono font, relaxed line-height
-- Scrollable container: `overflow-auto max-h-128`
-- Copy button: floating in top-right corner (`absolute top-3 right-3 z-10`)
-- Copy feedback: icon swaps from clipboard to checkmark, text changes "Copy" → "Copied" for 2 seconds
-- Fallback copy: `document.execCommand("copy")` for browsers without clipboard API
+Raw DBML text in `<pre>` with copy-to-clipboard button.
 
-#### Initialization
+#### External link
 
-The `initDbSchema()` function is called on both `DOMContentLoaded` and `astro:page-load` (for Astro's client-side navigation). A `data-initialized` attribute prevents double-initialization.
+Links to Bubble docs: `https://manual.bubble.io/help-guides/data/the-database`
 
 ---
 
@@ -326,14 +383,12 @@ The `initDbSchema()` function is called on both `DOMContentLoaded` and `astro:pa
 
 **Props:**
 ```typescript
-{ optionSets: { items: OptionSet[]; dbml?: string; warnings?: string[] } }
+{ optionSets: { items: OptionSet[]; dbml?: string } }
 ```
 
-**Design:**
-- Splits items into two groups: with custom attributes and without
-- **With attributes**: Same accordion pattern as DatabaseSchema — numbered, expandable, one-at-a-time. Expanded view shows attribute table (name, type, flags)
-- **Without attributes (simple)**: Rendered as a flex-wrap row of pill-shaped tags (`rounded-md bg-base-200/50 dark:bg-base-800/50 ring-1 ring-base-200 dark:ring-base-800`)
-- Type color coding matches the database schema system
+- Splits into sets with attributes (accordion) and simple sets (pill tags)
+- Same accordion pattern as DatabaseSchema
+- External link to Bubble docs
 
 ---
 
@@ -346,30 +401,10 @@ The `initDbSchema()` function is called on both `DOMContentLoaded` and `astro:pa
 { types: DataType[]; baseUrl: string }
 ```
 
-**Design:**
-This section is **intentionally blurred** to protect the inspected app's security.
-
-- Generates plausible Data API endpoints from the database types × HTTP methods (GET, POST, PATCH, DELETE)
-- Generates sample Backend Workflow endpoints (`wf/initialize`, `wf/process_payment`, etc.)
-- All endpoint rows have `blur-[6px]` applied
-- The entire section is `pointer-events-none select-none aria-hidden="true"`
-- Max height capped at `max-h-64` to prevent excessive scrolling
-- No count of routes is displayed (removed for security)
-
-**Overlay:**
-- Semi-transparent overlay: `bg-base-100/60 dark:bg-base-900/70 backdrop-blur-[2px]`
-- Lock icon in a circular container
-- "API routes hidden for security" heading
-- Explanatory text about why routes are obscured
-
-**HTTP method colors:**
-
-| Method | Color |
-|--------|-------|
-| GET | Emerald |
-| POST | Blue |
-| PATCH | Amber |
-| DELETE | Rose |
+- **Intentionally blurred** for security — `blur-[6px]`, `pointer-events-none`, `select-none`
+- `max-h-64` height cap, no route count displayed
+- Lock icon overlay with explanation text
+- External link to Bubble docs
 
 ---
 
@@ -379,19 +414,29 @@ This section is **intentionally blurred** to protect the inspected app's securit
 
 **Props:**
 ```typescript
-{ messages: ConsoleMessage[] }  // where ConsoleMessage = { type: string; text: string }
+{ messages: ConsoleMessage[] }
 ```
 
-**Design:**
-- Groups messages by type: Errors, Warnings, Logs (only non-empty groups shown)
-- Each group has a colored dot, label, and count
-- Individual messages: rounded cards with tinted backgrounds and ring borders
-  - Errors: `bg-rose-500/5 ring-rose-500/10 text-rose-600 dark:text-rose-400`
-  - Warnings: `bg-amber-500/5 ring-amber-500/10 text-amber-600 dark:text-amber-400`
-  - Logs: `bg-base-500/5 ring-base-500/10 text-base-500 dark:text-base-400`
-- Message text: `text-xs font-mono break-all leading-relaxed`
-- Empty state: centered "No console messages captured" in a bordered container
-- Header includes inline count badges (dots + counts for each type)
+- Groups by type: Errors (rose), Warnings (amber), Logs (gray)
+- Colored dot + count for each group
+- Mono font messages in tinted cards
+- Empty state: "No console messages captured"
+
+---
+
+## Section Title Links
+
+Each component's section title has a small external-link icon that opens the relevant Bubble documentation:
+
+| Section | Bubble Docs URL |
+|---------|----------------|
+| Pages | `https://manual.bubble.io/help-guides/design/elements/web-app/the-page` |
+| Color Palette | `https://manual.bubble.io/help-guides/design/styling/color-variables` |
+| Database Schema | `https://manual.bubble.io/help-guides/data/the-database` |
+| Option Sets | `https://manual.bubble.io/help-guides/data/static-data/option-sets` |
+| API Endpoints | `https://manual.bubble.io/core-resources/api/the-bubble-api` |
+
+Icon style: `text-base-300 dark:text-base-700` default, brightens on hover.
 
 ---
 
@@ -399,80 +444,46 @@ This section is **intentionally blurred** to protect the inspected app's securit
 
 ### Text Component
 
-All text uses the project's `Text` component from `@/components/fundations/elements/Text.astro`:
-
 | Variant | Usage |
 |---------|-------|
 | `displayXL` | Page title |
 | `displaySM` | Section titles |
-| `textBase` | Stat card values |
-| `textSM` | Section subtitles, body text |
-| `textXS` | Labels, metadata, small counts |
+| `textBase` | Stat card values, body text |
+| `textSM` | Section subtitles |
+| `textXS` | Labels, metadata |
 
 ### Section Header Pattern
 
-Every component follows this structure:
-
 ```astro
-<div class="flex flex-col gap-6">
-  <div>
-    <Text tag="h2" variant="displaySM" class="dark:text-white text-base-900 font-medium tracking-tighter">
-      section title
-    </Text>
-    <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500 mt-1">
-      {count} items · {otherCount} details
-    </Text>
-  </div>
-  <!-- Content -->
+<div class="flex items-center gap-2">
+  <Text tag="h2" variant="displaySM" class="dark:text-white text-base-900 font-medium tracking-tighter">
+    section title
+  </Text>
+  <a href="..." target="_blank" class="text-base-300 dark:text-base-700 hover:text-base-500 ...">
+    <!-- external link SVG -->
+  </a>
 </div>
+<Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500 mt-1">
+  {count} items · {otherCount} details
+</Text>
 ```
 
-Section titles are lowercase by convention (matching the landing page style).
+Section titles are lowercase by convention.
 
 ### Accordion Pattern
 
-Used in DatabaseSchema and OptionSets:
-
 ```html
 <details class="group" data-*-card>
-  <summary class="flex items-center justify-between py-4 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+  <summary class="... cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
     <!-- Numbered index + name + count + chevron -->
   </summary>
-  <div class="pb-6 pl-9">
-    <!-- Expanded content -->
-  </div>
+  <div class="pb-6 pl-9"><!-- Expanded content --></div>
 </details>
 ```
 
-- Native `<details>` element — works without JS for basic expand/collapse
-- JS enhances with single-open accordion behavior
-- Chevron animation via Tailwind's `group-open:rotate-180`
-- Webkit marker hidden via `[&::-webkit-details-marker]:hidden`
-- Content indented with `pl-9` to align under the name (past the index number)
+### Badge/Pill, Card, Numbered Index
 
-### Badge/Pill Pattern
-
-```html
-<span class="inline-flex items-center rounded bg-{color}-500/10 px-1.5 py-0.5 text-[10px] font-medium text-{color}-600 dark:text-{color}-400 ring-1 ring-{color}-500/20">
-  label
-</span>
-```
-
-### Card Pattern
-
-```html
-<div class="rounded-lg border border-base-200 dark:border-base-800 p-4">
-  <!-- content -->
-</div>
-```
-
-### Numbered Index
-
-```html
-<span class="text-base-400 dark:text-base-600 text-xs font-mono tabular-nums w-6 shrink-0 text-right">
-  {String(index + 1).padStart(2, "0")}
-</span>
-```
+Same patterns as before — `rounded bg-{color}-500/10 ring-1 ring-{color}-500/20`, `rounded-lg border border-base-200 dark:border-base-800 p-4`, mono tabular-nums zero-padded indices.
 
 ---
 
@@ -480,42 +491,52 @@ Used in DatabaseSchema and OptionSets:
 
 | Feature | Implementation | Event |
 |---------|---------------|-------|
+| Form submission | Client JS normalizes URL, navigates to `?url=` | Click / Enter |
+| URL validation | `new URL()` + protocol/hostname checks | On submit |
+| Rate limiting | localStorage counter, 5/24h | On submit |
+| Loading skeleton | Hidden div, shown via `classList.toggle` on submit | Click |
 | Database/OptionSet accordion | `<details>` + JS `toggle` listener | Single-open enforcement |
 | Database view tabs | `data-tab` buttons + `data-db-panel` panels | Click → class toggle |
 | Legend visibility | Hidden when not in "View" tab | Tab switch |
-| DBML copy to clipboard | `navigator.clipboard.writeText()` + fallback `execCommand` | Click |
-| Copy button feedback | Icon swap + text change for 2s | setTimeout |
-| Mermaid diagram rendering | Lazy `import("mermaid")` on first "Diagram" tab click | Tab switch |
-| Mermaid theme detection | `document.documentElement.classList.contains("dark")` at render time | Render-time check |
+| Download SVG button | Visible only in Diagram tab | Tab switch |
+| SVG download | `XMLSerializer` → Blob → download link | Click |
+| DBML copy to clipboard | `navigator.clipboard.writeText()` + fallback | Click |
+| Mermaid diagram rendering | CDN import on first "Diagram" tab click | Tab switch |
+| Mermaid pan/zoom | Pointer events + CSS transform + wheel listener | Scroll/drag |
+| Mermaid theme detection | `document.documentElement.classList.contains("dark")` | Render-time check |
 
 ---
 
-## Data Flow: Fixture → Live
+## Data Flow
 
-Currently, the page imports a static JSON fixture:
-
-```typescript
-import fixtureData from "../../data/inspections/2026-03-07T00-00-43-548Z_app-vows-you.json";
-```
-
-Each data slice is destructured and passed as props:
+### Server-Side (SSR)
 
 ```typescript
-const detection = fixtureData.bubbleDetection;
-const database = fixtureData.database;
-// etc.
+// In frontmatter of inspect-bubble-app.astro:
+const rawUrl = Astro.url.searchParams.get("url") ?? "";
+
+if (rawUrl) {
+  const callerId = deriveCallerId(Astro.request);
+  const result = await inspectUrl(rawUrl, callerId);
+  // result.data is passed as props to all components
+}
 ```
 
-**To switch to live data**, only the page file changes:
+No fixture data is imported. No client-side fetch to `/api/inspect`. The worker is called directly from the frontmatter using the same `inspectUrl()` function the API route uses.
 
-1. Add a form or URL input that calls `POST /api/inspect`
-2. Pass the response through the same destructuring
-3. Feed the same props to the same components
+### Component Data Flow
 
-No component modifications are needed. Every component:
-- Accepts data via `Astro.props`
-- Handles missing/empty data (empty arrays, nullish checks, `?? []` patterns)
-- Renders an empty/zero state where appropriate
+Each component receives its slice of the worker response as props:
+
+| Component | Prop | Source |
+|-----------|------|--------|
+| BubbleDetection | `detection`, `summary`, `debugMeta`, URLs | `result.data.bubbleDetection`, `.summary`, `.debugMeta` |
+| PageList | `pages`, `baseUrl` | `result.data.pages`, `.finalUrl` |
+| ColorPalette | `colors` | `result.data.colors` |
+| DatabaseSchema | `database`, `appName` | `result.data.database`, `.bubbleDetection.app_id` |
+| OptionSets | `optionSets` | `result.data.optionSets` |
+| ApiRoutes | `types`, `baseUrl` | `result.data.database.types`, `.finalUrl` |
+| ConsoleMessages | `messages` | `result.data.consoleMessages` |
 
 ---
 
@@ -523,8 +544,8 @@ No component modifications are needed. Every component:
 
 | Breakpoint | Usage |
 |------------|-------|
-| Default (mobile) | Single column, stacked layout |
-| `sm` (640px) | 2-column grids, inline header metadata, show "DB Type" column |
+| Default (mobile) | Single column, stacked layout, form stacked |
+| `sm` (640px) | 2-column grids, inline form, show "DB Type" column |
 | `md` (768px) | Show "Flags" column in schema tables |
 | `lg` (1024px) | 3-4 column grids, 6-column color palette |
 
@@ -534,9 +555,9 @@ No component modifications are needed. Every component:
 
 | Package | Usage | Loaded |
 |---------|-------|--------|
-| `mermaid` | ERD diagram rendering | Lazy (client-side dynamic import, only when Diagram tab is clicked) |
+| `mermaid` | ERD diagram rendering | CDN (`https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs`), lazy-loaded on Diagram tab click |
 
-Mermaid is the only client-side dependency added for this page. All other rendering is server-side Astro.
+Note: Mermaid is loaded from CDN rather than the npm package to bypass Vite's dependency optimizer cache issues (`504 Outdated Optimize Dep`). The npm `mermaid` package is still in `package.json` but unused at runtime.
 
 ---
 
@@ -544,9 +565,24 @@ Mermaid is the only client-side dependency added for this page. All other render
 
 | Bug | Root Cause | Fix |
 |-----|-----------|-----|
+| Vercel build failed | Fixture JSON import from gitignored `data/` directory | Removed fixture import; page now uses live SSR data |
 | Tab switching didn't work | `initDbSchema()` not called on Astro page navigation | Added `astro:page-load` listener + `data-initialized` guard |
-| Mermaid diagram "failed to render" | Astro HTML-encoded quotes in `<pre>` tag (`"` → `&quot;`) | Moved Mermaid definition to `<script type="application/json">` + `JSON.parse` on client |
+| Mermaid `import("mermaid")` failed | Vite dep optimizer stale cache (`504 Outdated Optimize Dep`) | Switched to CDN import |
+| Mermaid parse error on `FK` | `FK` is a reserved Mermaid keyword, was used as field type | Changed to `ref` type + `FK` constraint after field name |
+| Mermaid diagram "failed to render" | Astro HTML-encoded quotes in `<pre>` tag | Moved to `<script type="application/json">` + `JSON.parse` |
 | `aspect-[4/3]` linter warning | Tailwind shorthand available | Changed to `aspect-4/3` |
-| JSON import lint error | TypeScript module resolution | Added `allowSyntheticDefaultImports: true` to `tsconfig.json` |
+| TypeScript `result.error` lint | Discriminated union not narrowing in else branch | Explicit cast via `(result as InspectError).error` |
 | Header cramped on mobile | All metadata on one line | Changed to `flex-col gap-2 sm:flex-row sm:flex-wrap` |
 | Stale ConsoleMessage type error | `type` was a union literal, worker returned other strings | Widened `type` to `string` |
+
+---
+
+## Future Enhancement Ideas
+
+1. Search/filter within database schema by type name
+2. Click-to-copy hex codes on color swatches
+3. Collapsible console message groups for large counts
+4. "Copy link" button for shareable results URL (`?url=` already works)
+5. Summary stats bar at top of results (types, fields, pages, colors as pills)
+6. Cross-linking between related types in the View tab
+7. Download DBML as `.dbml` file (not just copy)
