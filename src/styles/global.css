@@ -14,18 +14,18 @@
   --text-13xl: 10rem;
   --text-14xl: 10.5rem;
   --text-15xl: 11rem;
-  /* accent Shades */
-  --color-accent-50: oklch(96.56% 0.013 41.2);
-  --color-accent-100: oklch(93.04% 0.028 36.86);
-  --color-accent-200: oklch(86.4% 0.057 37.22);
-  --color-accent-300: oklch(79.75% 0.089 37.16);
-  --color-accent-400: oklch(74.19% 0.118 37.31);
-  --color-accent-500: oklch(68.44% 0.15 37.77);
-  --color-accent-600: oklch(63.12% 0.182 36.62);
-  --color-accent-700: oklch(52.41% 0.16 36.52);
-  --color-accent-800: oklch(38.72% 0.112 36.83);
-  --color-accent-900: oklch(24.88% 0.064 37.97);
-  --color-accent-950: oklch(17.91% 0.038 43.07);
+  /* accent Shades — based on #76abad */
+  --color-accent-50: oklch(96.5% 0.008 194);
+  --color-accent-100: oklch(93% 0.016 194);
+  --color-accent-200: oklch(86.5% 0.03 194);
+  --color-accent-300: oklch(80% 0.04 194);
+  --color-accent-400: oklch(74% 0.047 194);
+  --color-accent-500: oklch(69.5% 0.047 194);
+  --color-accent-600: oklch(60% 0.05 194);
+  --color-accent-700: oklch(50% 0.045 194);
+  --color-accent-800: oklch(38% 0.035 194);
+  --color-accent-900: oklch(25% 0.02 194);
+  --color-accent-950: oklch(18% 0.015 194);
   --color-base-50: oklch(96.14% 0.001 286.38);
   --color-base-100: oklch(93.05% 0.002 247.84);
   --color-base-200: oklch(85.32% 0.003 228.79);
