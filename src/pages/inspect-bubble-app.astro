@@ -87,11 +87,11 @@ const activeColorsCount = colors?.["%del:false"]?.length ?? 0;
 
         <!-- Form -->
         <div class="flex flex-col gap-3 mt-2" data-inspect-form>
-          <div class="flex flex-col gap-3 sm:flex-row">
-            <div class="relative flex-1">
-              <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
-                <svg class="size-4 dark:text-base-600 text-base-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.86-2.03a4.5 4.5 0 00-1.242-7.244l4.5-4.5a4.5 4.5 0 016.364 6.364l-1.757 1.757" />
+          <div class="relative max-w-md w-full">
+            <div class="group/bar flex items-center rounded-lg border border-base-200 dark:border-base-800 bg-base-50 dark:bg-base-900 transition-colors focus-within:border-base-400 dark:focus-within:border-base-600">
+              <div class="pointer-events-none flex items-center pl-3">
+                <svg class="size-3.5 dark:text-base-600 text-base-400 transition-colors group-focus-within/bar:text-base-900 dark:group-focus-within/bar:text-white" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
                 </svg>
               </div>
               <input
@@ -99,30 +99,32 @@ const activeColorsCount = colors?.["%del:false"]?.length ?? 0;
                 data-url-input
                 value={rawUrl}
                 placeholder="app.example.com"
-                class="w-full rounded-xl border border-base-200 dark:border-base-800 bg-white dark:bg-base-950 pl-10 pr-4 py-3 text-sm dark:text-white text-base-900 placeholder:text-base-400 dark:placeholder:text-base-600 focus:outline-none focus:ring-2 focus:ring-base-900 dark:focus:ring-white focus:border-transparent transition-all"
+                class="flex-1 bg-transparent border-0 pl-2 pr-2 py-2.5 text-sm dark:text-white text-base-900 placeholder:text-base-400 dark:placeholder:text-base-600 focus:outline-none focus:ring-0 outline-none"
+                style="outline: none; box-shadow: none;"
               />
-              <span
-                data-url-error
-                class="absolute -bottom-5 left-0 text-xs text-rose-500 opacity-0 transition-opacity duration-200"
+              <div class="border-l border-base-200 dark:border-base-800 h-5 mx-0.5" />
+              <button
+                data-submit-btn
+                class="group inline-flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium dark:text-base-400 text-base-500 hover:dark:text-white hover:text-base-900 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0 rounded-r-lg"
               >
-                Not a valid URL
-              </span>
+                <svg data-btn-icon class="size-3.5 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                </svg>
+                <span data-btn-text>Inspect</span>
+                <svg data-btn-spinner class="hidden size-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              </button>
             </div>
-            <button
-              data-submit-btn
-              class="group inline-flex items-center justify-center gap-2 rounded-xl bg-base-900 dark:bg-white px-6 py-3 text-sm font-medium text-white dark:text-base-900 hover:bg-base-800 dark:hover:bg-base-100 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+            <span
+              data-url-error
+              class="absolute -bottom-5 left-0 text-xs text-rose-500 opacity-0 transition-opacity duration-200"
             >
-              <svg data-btn-icon class="size-4 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-              </svg>
-              <span data-btn-text>Inspect</span>
-              <svg data-btn-spinner class="hidden size-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-            </button>
+              Not a valid URL
+            </span>
           </div>
-          <div class="flex items-center justify-between mt-1">
+          <div class="flex items-center justify-between mt-1 max-w-md">
             <span data-tries-text class="text-xs dark:text-base-600 text-base-400"></span>
             {inspectionError && (
               <span class="text-xs text-rose-500">{inspectionError}</span>
@@ -231,54 +233,121 @@ const activeColorsCount = colors?.["%del:false"]?.length ?? 0;
 
   <!-- Empty state: what this tool does -->
   {!hasResults && !notBubble && !inspectionError && (
-    <section>
-      <Wrapper variant="standard" class="pb-24">
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div class="rounded-xl border border-base-200 dark:border-base-800 p-6 flex flex-col gap-3">
-            <div class="size-9 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-              <svg class="size-4.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
-              </svg>
+    <>
+      <section>
+        <Wrapper variant="standard" class="pb-16">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div class="rounded-xl border border-base-200 dark:border-base-800 p-6 flex flex-col gap-3">
+              <div class="size-9 rounded-lg bg-base-200/50 dark:bg-base-800/50 flex items-center justify-center">
+                <svg class="size-4.5 dark:text-base-400 text-base-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
+                </svg>
+              </div>
+              <Text tag="h3" variant="textBase" class="dark:text-white text-base-900 font-medium">
+                Database schema
+              </Text>
+              <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500">
+                Discover every data type, field, and relationship in the app's database — with an interactive ERD diagram.
+              </Text>
             </div>
-            <Text tag="h3" variant="textBase" class="dark:text-white text-base-900 font-medium">
-              Database schema
-            </Text>
-            <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500">
-              Discover every data type, field, and relationship in the app's database — with an interactive ERD diagram.
-            </Text>
-          </div>
 
-          <div class="rounded-xl border border-base-200 dark:border-base-800 p-6 flex flex-col gap-3">
-            <div class="size-9 rounded-lg bg-blue-500/10 flex items-center justify-center">
-              <svg class="size-4.5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z" />
-              </svg>
+            <div class="rounded-xl border border-base-200 dark:border-base-800 p-6 flex flex-col gap-3">
+              <div class="size-9 rounded-lg bg-base-200/50 dark:bg-base-800/50 flex items-center justify-center">
+                <svg class="size-4.5 dark:text-base-400 text-base-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z" />
+                </svg>
+              </div>
+              <Text tag="h3" variant="textBase" class="dark:text-white text-base-900 font-medium">
+                Option sets
+              </Text>
+              <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500">
+                See all static option sets with their attributes, organized and easy to review.
+              </Text>
             </div>
-            <Text tag="h3" variant="textBase" class="dark:text-white text-base-900 font-medium">
-              Option sets & pages
-            </Text>
-            <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500">
-              See all static option sets with their attributes, and every page the app exposes — categorized automatically.
-            </Text>
-          </div>
 
-          <div class="rounded-xl border border-base-200 dark:border-base-800 p-6 flex flex-col gap-3">
-            <div class="size-9 rounded-lg bg-rose-500/10 flex items-center justify-center">
-              <svg class="size-4.5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M4.098 19.902a3.75 3.75 0 005.304 0l6.401-6.402M6.75 21A3.75 3.75 0 013 17.25V4.125C3 3.504 3.504 3 4.125 3h5.25c.621 0 1.125.504 1.125 1.125v4.072M6.75 21a3.75 3.75 0 003.75-3.75V8.197M6.75 21h13.125c.621 0 1.125-.504 1.125-1.125v-5.25c0-.621-.504-1.125-1.125-1.125h-4.072M10.5 8.197l2.88-2.88c.438-.439 1.15-.439 1.59 0l3.712 3.713c.44.44.44 1.152 0 1.59l-2.879 2.88M6.75 17.25h.008v.008H6.75v-.008z" />
-              </svg>
+            <div class="rounded-xl border border-base-200 dark:border-base-800 p-6 flex flex-col gap-3">
+              <div class="size-9 rounded-lg bg-base-200/50 dark:bg-base-800/50 flex items-center justify-center">
+                <svg class="size-4.5 dark:text-base-400 text-base-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                </svg>
+              </div>
+              <Text tag="h3" variant="textBase" class="dark:text-white text-base-900 font-medium">
+                Pages
+              </Text>
+              <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500">
+                Every page the app exposes — automatically categorized by type and purpose.
+              </Text>
             </div>
-            <Text tag="h3" variant="textBase" class="dark:text-white text-base-900 font-medium">
-              Colors & console
-            </Text>
-            <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500">
-              Extract the complete color palette with hex values, and capture console errors, warnings, and logs.
-            </Text>
+
+            <div class="rounded-xl border border-base-200 dark:border-base-800 p-6 flex flex-col gap-3">
+              <div class="size-9 rounded-lg bg-base-200/50 dark:bg-base-800/50 flex items-center justify-center">
+                <svg class="size-4.5 dark:text-base-400 text-base-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4.098 19.902a3.75 3.75 0 005.304 0l6.401-6.402M6.75 21A3.75 3.75 0 013 17.25V4.125C3 3.504 3.504 3 4.125 3h5.25c.621 0 1.125.504 1.125 1.125v4.072M6.75 21a3.75 3.75 0 003.75-3.75V8.197M6.75 21h13.125c.621 0 1.125-.504 1.125-1.125v-5.25c0-.621-.504-1.125-1.125-1.125h-4.072M10.5 8.197l2.88-2.88c.438-.439 1.15-.439 1.59 0l3.712 3.713c.44.44.44 1.152 0 1.59l-2.879 2.88M6.75 17.25h.008v.008H6.75v-.008z" />
+                </svg>
+              </div>
+              <Text tag="h3" variant="textBase" class="dark:text-white text-base-900 font-medium">
+                Color palette
+              </Text>
+              <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500">
+                Extract the complete color palette with hex values — click to copy any color instantly.
+              </Text>
+            </div>
+
+            <div class="rounded-xl border border-base-200 dark:border-base-800 p-6 flex flex-col gap-3">
+              <div class="size-9 rounded-lg bg-base-200/50 dark:bg-base-800/50 flex items-center justify-center">
+                <svg class="size-4.5 dark:text-base-400 text-base-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" />
+                </svg>
+              </div>
+              <Text tag="h3" variant="textBase" class="dark:text-white text-base-900 font-medium">
+                API endpoints
+              </Text>
+              <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500">
+                Map out the data API routes your app exposes based on its database types.
+              </Text>
+            </div>
+
+            <div class="rounded-xl border border-base-200 dark:border-base-800 p-6 flex flex-col gap-3">
+              <div class="size-9 rounded-lg bg-base-200/50 dark:bg-base-800/50 flex items-center justify-center">
+                <svg class="size-4.5 dark:text-base-400 text-base-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z" />
+                </svg>
+              </div>
+              <Text tag="h3" variant="textBase" class="dark:text-white text-base-900 font-medium">
+                Console output
+              </Text>
+              <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500">
+                Capture console errors, warnings, and logs — grouped and color-coded by severity.
+              </Text>
+            </div>
           </div>
-        </div>
-      </Wrapper>
-    </section>
+        </Wrapper>
+      </section>
+
+      <section>
+        <Wrapper variant="standard" class="pb-24">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-12">
+            <div class="flex flex-col gap-3">
+              <Text tag="h2" variant="displaySM" class="dark:text-white text-base-900 font-medium tracking-tighter">
+                Understand any Bubble app in seconds
+              </Text>
+              <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500">
+                Paste a URL and get a complete breakdown of the application's architecture — data model, pages, option sets, colors, and more. No login required, no access to the app needed. Everything is extracted from the public runtime.
+              </Text>
+            </div>
+            <div class="flex flex-col gap-3">
+              <Text tag="h2" variant="displaySM" class="dark:text-white text-base-900 font-medium tracking-tighter">
+                Built for Bubble developers
+              </Text>
+              <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500">
+                Whether you're auditing your own app, onboarding to a new project, or reverse-engineering a competitor, the inspector gives you the visibility that Bubble's editor doesn't. Export schemas as DBML, download ERD diagrams, and explore relationships interactively.
+              </Text>
+            </div>
+          </div>
+        </Wrapper>
+      </section>
+    </>
   )}
 
   <!-- Results -->
