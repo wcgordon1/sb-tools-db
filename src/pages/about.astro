@@ -5,8 +5,18 @@ import Wrapper from "@/components/fundations/containers/Wrapper.astro";
 ---
 
 <BaseLayout>
-  <section>
-    <Wrapper variant="standard" class="py-24 lg:pt-48 lg:pb-32">
+  <section class="relative overflow-hidden">
+    <div
+      id="about-dots"
+      class="absolute inset-0 pointer-events-none text-base-500 dark:text-base-500 transition-opacity duration-500 opacity-50"
+      style="
+        background-image: radial-gradient(circle, currentColor 1.5px, transparent 1.5px);
+        background-size: 28px 28px;
+        -webkit-mask-image: linear-gradient(to bottom right, transparent 10%, rgba(0,0,0,0.25) 50%, rgba(0,0,0,1) 100%);
+        mask-image: linear-gradient(to bottom right, transparent 10%, rgba(0,0,0,0.25) 50%, rgba(0,0,0,1) 100%);
+      "
+    ></div>
+    <Wrapper variant="standard" class="relative z-10 py-24 lg:pt-48 lg:pb-32">
       <h1
         class="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight dark:text-white text-black"
       >
@@ -69,8 +79,7 @@ import Wrapper from "@/components/fundations/containers/Wrapper.astro";
             variant="textXL"
             class="text-base-500 dark:text-base-300 md:max-w-2xl"
           >
-            We build internet businesses. We started because most software is too
-            complicated. Good tools should be simple. They should work without
+            We build internet businesses. Good tools should be simple. They should work without
             thinking.
           </Text>
           <Text
@@ -78,8 +87,8 @@ import Wrapper from "@/components/fundations/containers/Wrapper.astro";
             variant="textXL"
             class="text-base-500 dark:text-base-300 md:max-w-2xl mt-6"
           >
-            We design and build products that people actually use. No excess. No
-            noise. Just purposeful software that solves real problems.
+            We design and build products for use. No excess. No
+            noise. Just purposeful software.
           </Text>
         </div>
       </div>
@@ -148,6 +157,7 @@ import Wrapper from "@/components/fundations/containers/Wrapper.astro";
 <script type="module">
   const buttons = document.querySelectorAll(".size-toggle");
   const blocks = document.querySelectorAll(".about-text");
+  const dots = document.getElementById("about-dots");
 
   const activeClasses = ["text-base-900", "dark:text-white"];
   const inactiveClasses = [
@@ -157,20 +167,25 @@ import Wrapper from "@/components/fundations/containers/Wrapper.astro";
     "dark:hover:text-base-400",
   ];
 
-  buttons.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const target = btn.dataset.target;
+  const dotOpacity = { small: "opacity-0", medium: "opacity-25", large: "opacity-50" };
 
-      blocks.forEach((block) => {
-        block.classList.toggle("active", block.dataset.size === target);
-      });
-
-      buttons.forEach((b) => {
-        const isActive = b.dataset.target === target;
-        b.classList.toggle("active", isActive);
-        activeClasses.forEach((c) => b.classList.toggle(c, isActive));
-        inactiveClasses.forEach((c) => b.classList.toggle(c, !isActive));
-      });
+  function setSize(target) {
+    blocks.forEach((block) => {
+      block.classList.toggle("active", block.dataset.size === target);
     });
+
+    buttons.forEach((b) => {
+      const isActive = b.dataset.target === target;
+      b.classList.toggle("active", isActive);
+      activeClasses.forEach((c) => b.classList.toggle(c, isActive));
+      inactiveClasses.forEach((c) => b.classList.toggle(c, !isActive));
+    });
+
+    Object.values(dotOpacity).forEach((c) => dots.classList.remove(c));
+    dots.classList.add(dotOpacity[target]);
+  }
+
+  buttons.forEach((btn) => {
+    btn.addEventListener("click", () => setSize(btn.dataset.target));
   });
 </script>
