@@ -79,19 +79,23 @@ function getOutgoingRefs(typeName: string): Ref[] {
 
 // ── Mermaid ERD generation ─────────────────────────────────────────────────
 function sanitizeId(name: string): string {
-  return name
+  let result = name
     .replace(/[^\w\s-]/g, "")
     .trim()
     .replace(/[\s-]+/g, "_")
     .replace(/^_+|_+$/g, "") || "Unknown";
+  if (/^\d/.test(result)) result = "_" + result;
+  return result;
 }
 
 function sanitizeFieldDisplay(name: string): string {
-  return name
+  let result = name
     .replace(/[^\w\s-]/g, "")
     .trim()
     .replace(/[\s-]+/g, "_")
     .replace(/^_+|_+$/g, "") || "field";
+  if (/^\d/.test(result)) result = "_" + result;
+  return result;
 }
 
 function mapFieldType(field: Field): string {
