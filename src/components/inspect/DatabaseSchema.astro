@@ -256,7 +256,7 @@ for (const ref of refs) {
         const relationshipFields = type.fields.filter((f) => f.isRelationship);
 
         return (
-          <details class="group" data-type-card>
+          <details class="group" data-type-card data-type-name={type.name}>
             <summary class="flex items-center justify-between py-4 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
               <div class="flex items-center gap-3 min-w-0">
                 <span class="text-base-400 dark:text-base-600 text-xs font-mono tabular-nums w-6 shrink-0 text-right">
@@ -344,7 +344,7 @@ for (const ref of refs) {
                       <span class="text-xs dark:text-base-400 text-base-500">
                         <span class="font-mono text-amber-600 dark:text-amber-400">{ref.fromField}</span>
                         <span class="dark:text-base-600 text-base-300 mx-1">&rarr;</span>
-                        <span class="dark:text-base-300 text-base-700">{ref.toType}</span>
+                        <button data-goto-type={ref.toType} class="dark:text-base-300 text-base-700 hover:underline cursor-pointer">{ref.toType}</button>
                         {ref.isList && (
                           <span class="ml-1 text-blue-500/70">(many)</span>
                         )}
@@ -352,7 +352,7 @@ for (const ref of refs) {
                     ))}
                     {incoming.map((ref) => (
                       <span class="text-xs dark:text-base-400 text-base-500">
-                        <span class="dark:text-base-300 text-base-700">{ref.fromType}</span>
+                        <button data-goto-type={ref.fromType} class="dark:text-base-300 text-base-700 hover:underline cursor-pointer">{ref.fromType}</button>
                         <span class="dark:text-base-600 text-base-300 mx-1">&rarr;</span>
                         <span class="font-mono text-amber-600 dark:text-amber-400">{ref.fromField}</span>
                         {ref.isList && (
@@ -523,6 +523,20 @@ for (const ref of refs) {
             }
           });
         }
+      });
+    });
+
+    // Relationship cross-linking
+    container.querySelectorAll("[data-goto-type]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const typeName = btn.getAttribute("data-goto-type");
+        const target = container.querySelector(`[data-type-name="${CSS.escape(typeName ?? "")}"]`) as HTMLDetailsElement | null;
+        if (!target) return;
+
+        cards.forEach((c) => { (c as HTMLDetailsElement).open = false; });
+        target.open = true;
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     });
 
