@@ -117,15 +117,15 @@ const activeColorsCount = colors?.["%del:false"]?.length ?? 0;
                 </svg>
               </button>
             </div>
-            <span
-              data-url-error
-              class="absolute -bottom-5 left-0 text-xs text-rose-500 opacity-0 transition-opacity duration-200"
-            >
-              Not a valid URL
-            </span>
           </div>
           <div class="flex items-center justify-between mt-1 max-w-md">
             <span data-tries-text class="text-xs dark:text-base-600 text-base-400"></span>
+            <span
+              data-url-error
+              class="text-xs text-rose-500 opacity-0 transition-opacity duration-200"
+            >
+              Not a valid URL
+            </span>
             {inspectionError && (
               <span class="text-xs text-rose-500">{inspectionError}</span>
             )}
@@ -247,7 +247,7 @@ const activeColorsCount = colors?.["%del:false"]?.length ?? 0;
                 Database schema
               </Text>
               <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500">
-                Discover every data type, field, and relationship in the app's database — with an interactive ERD diagram.
+                Discover every data type, field, and relationship in the app's database.
               </Text>
             </div>
 
@@ -262,7 +262,7 @@ const activeColorsCount = colors?.["%del:false"]?.length ?? 0;
                 Option sets
               </Text>
               <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500">
-                See all static option sets with their attributes, organized and easy to review.
+                See all static option sets with their attributes and data type. 
               </Text>
             </div>
 
@@ -276,7 +276,7 @@ const activeColorsCount = colors?.["%del:false"]?.length ?? 0;
                 Pages
               </Text>
               <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500">
-                Every page the app exposes — automatically categorized by type and purpose.
+                Every page the app exposes, categorized by type and purpose.
               </Text>
             </div>
 
@@ -290,7 +290,7 @@ const activeColorsCount = colors?.["%del:false"]?.length ?? 0;
                 Color palette
               </Text>
               <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500">
-                Extract the complete color palette with hex values — click to copy any color instantly.
+                Extract the complete color palette with hex values and names.
               </Text>
             </div>
 
@@ -304,7 +304,7 @@ const activeColorsCount = colors?.["%del:false"]?.length ?? 0;
                 API endpoints
               </Text>
               <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500">
-                Map out the data API routes your app exposes based on its database types.
+                Map out the data & workflow API routes your app exposes. 
               </Text>
             </div>
 
@@ -318,7 +318,7 @@ const activeColorsCount = colors?.["%del:false"]?.length ?? 0;
                 Console output
               </Text>
               <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500">
-                Capture console errors, warnings, and logs — grouped and color-coded by severity.
+                Capture console errors, warnings, and logs, grouped and color-coded by severity.
               </Text>
             </div>
           </div>
@@ -333,7 +333,7 @@ const activeColorsCount = colors?.["%del:false"]?.length ?? 0;
                 Understand any Bubble app in seconds
               </Text>
               <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500">
-                Paste a URL and get a complete breakdown of the application's architecture — data model, pages, option sets, colors, and more. No login required, no access to the app needed. Everything is extracted from the public runtime.
+                Paste a URL and get a complete breakdown of the application's architecture: data model, pages, option sets, colors, api routes, and console output. No login required, no access to the app needed. Everything is extracted from the public runtime.
               </Text>
             </div>
             <div class="flex flex-col gap-3">
