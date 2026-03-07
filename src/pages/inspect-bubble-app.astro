@@ -20,101 +20,341 @@ const colors = fixtureData.colors;
 const pages = fixtureData.pages;
 const debugMeta = fixtureData.debugMeta;
 const consoleMessages = fixtureData.consoleMessages;
+
+const MAX_TRIES = 5;
 ---
 
 <BaseLayout
   pageTitle="Inspect Bubble App"
   pageDescription="Analyze the structure of a Bubble.io application"
 >
-  <!-- Header -->
+  <!-- Header + Form -->
   <section>
     <Wrapper variant="standard" class="pt-32 pb-12">
-      <div class="flex flex-col gap-2">
+      <div class="flex flex-col gap-6">
         <Text
           tag="h1"
           variant="displayXL"
-          class="dark:text-white text-base-900 font-medium tracking-tighter mb-2"
+          class="dark:text-white text-base-900 font-medium tracking-tighter"
         >
           Bubble app inspector
         </Text>
-        <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
-          <span
-            class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20 w-fit"
-          >
-            <span class="size-1.5 rounded-full bg-emerald-500"></span>
-            Bubble Detected
-          </span>
-          <Text
-            tag="span"
-            variant="textSM"
-            class="dark:text-base-400 text-base-500 break-all"
-          >
-            {fixtureData.finalUrl}
-          </Text>
-          <Text
-            tag="span"
-            variant="textXS"
-            class="dark:text-base-500 text-base-400 whitespace-nowrap"
-          >
-            v{detection.bubble_version} &middot; {detection.app_id}
-          </Text>
+
+        <div class="flex flex-col gap-2" data-inspect-form>
+          <div class="flex flex-col gap-3 sm:flex-row">
+            <div class="relative flex-1">
+              <input
+                type="text"
+                data-url-input
+                placeholder="https://your-bubble-app.com"
+                class="w-full rounded-lg border border-base-200 dark:border-base-800 bg-white dark:bg-base-950 px-4 py-2.5 text-sm dark:text-white text-base-900 placeholder:text-base-400 dark:placeholder:text-base-600 focus:outline-none focus:ring-2 focus:ring-base-900 dark:focus:ring-white focus:border-transparent transition-all"
+              />
+              <span
+                data-url-error
+                class="absolute -bottom-5 left-0 text-xs text-rose-500 opacity-0 transition-opacity duration-200"
+              >
+                Not a valid URL
+              </span>
+            </div>
+            <button
+              data-submit-btn
+              class="inline-flex items-center justify-center gap-2 rounded-lg bg-base-900 dark:bg-white px-5 py-2.5 text-sm font-medium text-white dark:text-base-900 hover:bg-base-800 dark:hover:bg-base-100 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+            >
+              <span data-btn-text>Inspect</span>
+              <svg data-btn-spinner class="hidden size-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            </button>
+          </div>
+          <div class="flex items-center justify-between">
+            <span data-tries-text class="text-xs dark:text-base-600 text-base-400"></span>
+            <span data-api-error class="text-xs text-rose-500 opacity-0 transition-opacity duration-200"></span>
+          </div>
+        </div>
+
+        <!-- Result header (hidden until results load) -->
+        <div data-result-header class="hidden">
+          <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+            <span
+              class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20 w-fit"
+              data-bubble-badge
+            >
+              <span class="size-1.5 rounded-full bg-emerald-500"></span>
+              <span data-badge-text>Bubble Detected</span>
+            </span>
+            <Text
+              tag="span"
+              variant="textSM"
+              class="dark:text-base-400 text-base-500 break-all"
+            >
+              <span data-result-url></span>
+            </Text>
+            <Text
+              tag="span"
+              variant="textXS"
+              class="dark:text-base-500 text-base-400 whitespace-nowrap"
+            >
+              <span data-result-meta></span>
+            </Text>
+          </div>
+        </div>
+
+        <!-- Not bubble notice -->
+        <div data-not-bubble class="hidden">
+          <div class="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
+            <span class="text-amber-500 text-sm mt-0.5 shrink-0">!</span>
+            <div>
+              <Text tag="p" variant="textSM" class="text-amber-700 dark:text-amber-400 font-medium">
+                Not a Bubble app
+              </Text>
+              <Text tag="p" variant="textXS" class="text-amber-600/80 dark:text-amber-500/80 mt-0.5">
+                This URL doesn't appear to be built with Bubble.io
+              </Text>
+            </div>
+          </div>
         </div>
       </div>
     </Wrapper>
   </section>
 
-  <!-- Detection Summary -->
-  <section>
-    <Wrapper variant="standard" class="pb-16">
-      <BubbleDetection
-        detection={detection}
-        summary={summary}
-        debugMeta={debugMeta}
-        submittedUrl={fixtureData.submittedUrl}
-        finalUrl={fixtureData.finalUrl}
-      />
-    </Wrapper>
-  </section>
+  <!-- Static fixture results (shown by default for dev, will be hidden when live results exist) -->
+  <div data-results-container>
+    <!-- Detection Summary -->
+    <section>
+      <Wrapper variant="standard" class="pb-16">
+        <BubbleDetection
+          detection={detection}
+          summary={summary}
+          debugMeta={debugMeta}
+          submittedUrl={fixtureData.submittedUrl}
+          finalUrl={fixtureData.finalUrl}
+        />
+      </Wrapper>
+    </section>
 
-  <!-- Pages -->
-  <section>
-    <Wrapper variant="standard" class="pb-16">
-      <PageList pages={pages} baseUrl={fixtureData.finalUrl} />
-    </Wrapper>
-  </section>
+    <!-- Pages -->
+    <section>
+      <Wrapper variant="standard" class="pb-16">
+        <PageList pages={pages} baseUrl={fixtureData.finalUrl} />
+      </Wrapper>
+    </section>
 
-  <!-- Color Palette -->
-  <section>
-    <Wrapper variant="standard" class="pb-16">
-      <ColorPalette colors={colors} />
-    </Wrapper>
-  </section>
+    <!-- Color Palette -->
+    <section>
+      <Wrapper variant="standard" class="pb-16">
+        <ColorPalette colors={colors} />
+      </Wrapper>
+    </section>
 
-  <!-- Database Schema -->
-  <section>
-    <Wrapper variant="standard" class="pb-16">
-      <DatabaseSchema database={database} appName={detection.app_id ?? fixtureData.finalUrl} />
-    </Wrapper>
-  </section>
+    <!-- Database Schema -->
+    <section>
+      <Wrapper variant="standard" class="pb-16">
+        <DatabaseSchema database={database} appName={detection.app_id ?? fixtureData.finalUrl} />
+      </Wrapper>
+    </section>
 
-  <!-- Option Sets -->
-  <section>
-    <Wrapper variant="standard" class="pb-16">
-      <OptionSets optionSets={optionSets} />
-    </Wrapper>
-  </section>
+    <!-- Option Sets -->
+    <section>
+      <Wrapper variant="standard" class="pb-16">
+        <OptionSets optionSets={optionSets} />
+      </Wrapper>
+    </section>
 
-  <!-- API Routes (blurred) -->
-  <section>
-    <Wrapper variant="standard" class="pb-16">
-      <ApiRoutes types={database.types} baseUrl={fixtureData.finalUrl} />
-    </Wrapper>
-  </section>
+    <!-- API Routes (blurred) -->
+    <section>
+      <Wrapper variant="standard" class="pb-16">
+        <ApiRoutes types={database.types} baseUrl={fixtureData.finalUrl} />
+      </Wrapper>
+    </section>
 
-  <!-- Console Messages -->
-  <section>
-    <Wrapper variant="standard" class="pb-24">
-      <ConsoleMessages messages={consoleMessages} />
-    </Wrapper>
-  </section>
+    <!-- Console Messages -->
+    <section>
+      <Wrapper variant="standard" class="pb-24">
+        <ConsoleMessages messages={consoleMessages} />
+      </Wrapper>
+    </section>
+  </div>
 </BaseLayout>
+
+<script define:vars={{ MAX_TRIES }}>
+  function initInspectForm() {
+    const form = document.querySelector("[data-inspect-form]");
+    if (!form) return;
+
+    const input = form.querySelector("[data-url-input]");
+    const submitBtn = form.querySelector("[data-submit-btn]");
+    const btnText = form.querySelector("[data-btn-text]");
+    const btnSpinner = form.querySelector("[data-btn-spinner]");
+    const urlError = form.querySelector("[data-url-error]");
+    const apiError = document.querySelector("[data-api-error]");
+    const triesText = form.querySelector("[data-tries-text]");
+    const resultHeader = document.querySelector("[data-result-header]");
+    const notBubble = document.querySelector("[data-not-bubble]");
+    const resultUrl = document.querySelector("[data-result-url]");
+    const resultMeta = document.querySelector("[data-result-meta]");
+    const badgeText = document.querySelector("[data-badge-text]");
+    const bubbleBadge = document.querySelector("[data-bubble-badge]");
+
+    const STORAGE_KEY = "inspect-bubble-tries";
+
+    function getTriesUsed() {
+      try {
+        const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+        const now = Date.now();
+        // Reset after 24 hours
+        if (stored.resetAt && now > stored.resetAt) {
+          localStorage.removeItem(STORAGE_KEY);
+          return 0;
+        }
+        return stored.count || 0;
+      } catch {
+        return 0;
+      }
+    }
+
+    function incrementTries() {
+      const current = getTriesUsed();
+      const newCount = current + 1;
+      const resetAt = Date.now() + 24 * 60 * 60 * 1000;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ count: newCount, resetAt }));
+      return newCount;
+    }
+
+    function updateTriesDisplay() {
+      const used = getTriesUsed();
+      const remaining = MAX_TRIES - used;
+      if (triesText) {
+        triesText.textContent = remaining <= 0
+          ? "No inspections remaining (resets in 24h)"
+          : `${remaining} of ${MAX_TRIES} inspections remaining`;
+      }
+      if (remaining <= 0 && submitBtn) {
+        submitBtn.disabled = true;
+      }
+    }
+
+    function normalizeUrl(raw) {
+      let url = raw.trim();
+      if (!url) return null;
+
+      // Strip trailing slashes for normalization, re-add later
+      // Add protocol if missing
+      if (!/^https?:\/\//i.test(url)) {
+        // Handle "www." prefix or bare domain
+        url = "https://" + url;
+      }
+
+      try {
+        const parsed = new URL(url);
+        // Must be http or https
+        if (!["http:", "https:"].includes(parsed.protocol)) return null;
+        // Must have a dot in hostname (no "https://localhost" type)
+        if (!parsed.hostname.includes(".")) return null;
+        return parsed.href;
+      } catch {
+        return null;
+      }
+    }
+
+    function flashError(el, message, durationMs) {
+      if (!el) return;
+      if (message) el.textContent = message;
+      el.style.opacity = "1";
+      setTimeout(() => { el.style.opacity = "0"; }, durationMs || 2000);
+    }
+
+    function setLoading(loading) {
+      if (submitBtn) submitBtn.disabled = loading;
+      if (btnText) btnText.textContent = loading ? "Inspecting…" : "Inspect";
+      if (btnSpinner) btnSpinner.classList.toggle("hidden", !loading);
+      if (input) input.disabled = loading;
+    }
+
+    async function handleSubmit() {
+      // Check tries
+      if (getTriesUsed() >= MAX_TRIES) {
+        flashError(apiError, "No inspections remaining (resets in 24h)", 3000);
+        return;
+      }
+
+      const raw = input?.value || "";
+      const url = normalizeUrl(raw);
+
+      if (!url) {
+        flashError(urlError, "Not a valid URL", 2000);
+        return;
+      }
+
+      // Update input to show normalized URL
+      if (input) input.value = url;
+
+      // Increment tries immediately
+      incrementTries();
+      updateTriesDisplay();
+
+      setLoading(true);
+
+      // Hide previous state
+      if (resultHeader) resultHeader.classList.add("hidden");
+      if (notBubble) notBubble.classList.add("hidden");
+
+      try {
+        const res = await fetch("/api/inspect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          flashError(apiError, data.error || "Something went wrong", 4000);
+          setLoading(false);
+          return;
+        }
+
+        // Success — show results
+        if (data.bubbleDetection && !data.bubbleDetection.isLikelyBubble) {
+          if (notBubble) notBubble.classList.remove("hidden");
+          setLoading(false);
+          return;
+        }
+
+        // Show result header
+        if (resultHeader) resultHeader.classList.remove("hidden");
+        if (resultUrl) resultUrl.textContent = data.finalUrl || url;
+        if (resultMeta && data.bubbleDetection) {
+          const version = data.bubbleDetection.bubble_version ?? "?";
+          const appId = data.bubbleDetection.app_id ?? "";
+          resultMeta.textContent = `v${version} · ${appId}`;
+        }
+
+        // For now the static fixture results stay visible below.
+        // When we wire up dynamic rendering, we'd rebuild the sections here.
+        // The API response shape matches the fixture data exactly,
+        // so the transition will be straightforward.
+
+      } catch (err) {
+        flashError(apiError, "Network error — please try again", 4000);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    // Enter key submits
+    input?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleSubmit();
+      }
+    });
+
+    submitBtn?.addEventListener("click", handleSubmit);
+
+    updateTriesDisplay();
+  }
+
+  document.addEventListener("DOMContentLoaded", initInspectForm);
+  document.addEventListener("astro:page-load", initInspectForm);
+</script>
