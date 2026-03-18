@@ -1,5 +1,6 @@
 ---
 import Text from "@/components/fundations/elements/Text.astro";
+import { normalizeDbmlForViewer } from "@/lib/inspect/normalize-dbml";
 
 interface Field {
   key: string;
@@ -38,7 +39,7 @@ const { database, appName = "app" } = Astro.props;
 const safeAppName = appName.replace(/[^a-z0-9]/gi, "-").toLowerCase() || "app";
 const types = database.types ?? [];
 const refs = database.refs ?? [];
-const dbml = database.dbml ?? "";
+const dbml = normalizeDbmlForViewer(database.dbml ?? "");
 const totalFields = types.reduce((sum: number, t: DataType) => sum + t.fields.length, 0);
 
 // ── Stats computations ────────────────────────────────────────────────────
