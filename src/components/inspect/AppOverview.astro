@@ -1,5 +1,6 @@
 ---
 import Text from "@/components/fundations/elements/Text.astro";
+import { getOverviewBadge } from "@/lib/inspect/overview-score";
 
 interface Props {
   typesCount: number;
@@ -12,14 +13,14 @@ interface Props {
 
 const { typesCount, fieldsCount, refsCount, pagesCount, optionSetsCount, colorsCount } = Astro.props;
 
-function getComplexityTier(types: number): { label: string; description: string } {
-  if (types >= 50) return { label: "Enterprise", description: "Large-scale application with extensive data modeling" };
-  if (types >= 25) return { label: "Complex", description: "Feature-rich application with significant data architecture" };
-  if (types >= 10) return { label: "Medium", description: "Standard application with moderate data complexity" };
-  return { label: "Light", description: "Lean application with a focused data model" };
-}
-
-const tier = getComplexityTier(typesCount);
+const badge = getOverviewBadge({
+  typesCount,
+  fieldsCount,
+  refsCount,
+  pagesCount,
+  optionSetsCount,
+  colorsCount,
+});
 
 const stats = [
   { label: "Data Types", value: typesCount },
@@ -33,15 +34,20 @@ const stats = [
 
 <div class="flex flex-col gap-6">
   <div>
-    <Text
-      tag="h2"
-      variant="displaySM"
-      class="dark:text-white text-base-900 font-medium tracking-tighter"
-    >
-      app overview
-    </Text>
-    <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500 mt-1">
-      High-level breakdown of the application's structure
+    <div class="flex items-center gap-3">
+      <Text
+        tag="h2"
+        variant="displaySM"
+        class="dark:text-white text-base-900 font-medium tracking-tighter"
+      >
+        app overview
+      </Text>
+      <span class="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-500/15 px-4 py-1.5 text-sm font-semibold text-blue-600 dark:text-blue-300 ring-1 ring-blue-200 dark:ring-blue-500/30">
+        {badge.tier}
+      </span>
+    </div>
+    <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500 mt-2">
+      {badge.description}
     </Text>
   </div>
 
@@ -58,12 +64,4 @@ const stats = [
     ))}
   </div>
 
-  <div class="flex items-center gap-3">
-    <span class="inline-flex items-center rounded-full bg-base-200 dark:bg-base-800 px-2.5 py-0.5 text-xs font-medium dark:text-base-300 text-base-600">
-      {tier.label}
-    </span>
-    <Text tag="span" variant="textXS" class="dark:text-base-500 text-base-400">
-      {tier.description}
-    </Text>
-  </div>
 </div>
