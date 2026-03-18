@@ -10,6 +10,7 @@ import PageList from "@/components/inspect/PageList.astro";
 import ApiRoutes from "@/components/inspect/ApiRoutes.astro";
 import ConsoleMessages from "@/components/inspect/ConsoleMessages.astro";
 import AppOverview from "@/components/inspect/AppOverview.astro";
+import { buildViewRefs } from "@/lib/inspect/view-model";
 import { inspectUrl } from "@/lib/worker/client";
 import { deriveCallerId } from "@/lib/worker/caller-id";
 import { saveInspectionResult } from "@/lib/worker/storage";
@@ -62,6 +63,7 @@ const debugMeta = inspectionData?.debugMeta;
 const consoleMessages = inspectionData?.consoleMessages ?? [];
 const totalFields = database?.types?.reduce((sum: number, t: any) => sum + t.fields.length, 0) ?? 0;
 const activeColorsCount = colors?.["%del:false"]?.length ?? 0;
+const viewRelationshipCount = database?.types ? buildViewRefs(database).length : 0;
 ---
 
 <BaseLayout
@@ -372,7 +374,7 @@ const activeColorsCount = colors?.["%del:false"]?.length ?? 0;
           <AppOverview
             typesCount={database.types.length}
             fieldsCount={totalFields}
-            refsCount={database.refs.length}
+            refsCount={viewRelationshipCount}
             pagesCount={pages.items.length}
             optionSetsCount={optionSets.items?.length ?? 0}
             colorsCount={activeColorsCount}
