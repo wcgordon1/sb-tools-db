@@ -397,7 +397,7 @@ const activeColorsCount = colors?.["%del:false"]?.length ?? 0;
       <!-- Database Schema -->
       <section>
         <Wrapper variant="standard" class="pb-16">
-          <DatabaseSchema database={database} appName={detection.app_id ?? inspectionData.finalUrl} />
+          <DatabaseSchema database={database} optionSets={optionSets} appName={detection.app_id ?? inspectionData.finalUrl} />
         </Wrapper>
       </section>
 

@@ -2,6 +2,8 @@
 import Text from "@/components/fundations/elements/Text.astro";
 import { normalizeDbmlForViewer } from "@/lib/inspect/normalize-dbml";
 import { buildMermaidRefs, type MermaidRef } from "@/lib/inspect/relationships";
+import { buildDbmlModel } from "@/lib/inspect/build-dbml-model";
+import { emitDbml } from "@/lib/inspect/emit-dbml";
 
 interface Field {
   key: string;
@@ -28,15 +30,32 @@ interface Props {
     dbml?: string;
     warnings?: string[];
   };
+  optionSets?: {
+    items?: Array<{
+      key: string;
+      name: string;
+      attributes: Array<{
+        key: string;
+        displayName: string;
+        rawType: string;
+        isList: boolean;
+        baseType: string;
+        dbType: string;
+      }>;
+    }>;
+    dbml?: string;
+    warnings?: string[];
+  };
   appName?: string;
 }
 
-const { database, appName = "app" } = Astro.props;
+const { database, optionSets, appName = "app" } = Astro.props;
 const safeAppName = appName.replace(/[^a-z0-9]/gi, "-").toLowerCase() || "app";
 const types = database.types ?? [];
 const refs = database.refs ?? [];
 const mermaidRefs = buildMermaidRefs(database);
-const dbml = normalizeDbmlForViewer(database.dbml ?? "");
+const canonicalDbml = emitDbml(buildDbmlModel({ database, optionSets }, { mode: "strict" }), safeAppName);
+const dbml = normalizeDbmlForViewer(canonicalDbml);
 const totalFields = types.reduce((sum: number, t: DataType) => sum + t.fields.length, 0);
 
 // ── Stats computations ────────────────────────────────────────────────────
