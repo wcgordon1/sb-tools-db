@@ -2,6 +2,7 @@
 import Text from "@/components/fundations/elements/Text.astro";
 import { normalizeDbmlForViewer } from "@/lib/inspect/normalize-dbml";
 import { buildMermaidRefs, type MermaidRef } from "@/lib/inspect/relationships";
+import { buildViewRefs, buildViewStats, indexRefsByType } from "@/lib/inspect/view-model";
 import { buildDbmlModel } from "@/lib/inspect/build-dbml-model";
 import { emitDbml } from "@/lib/inspect/emit-dbml";
 
@@ -53,6 +54,9 @@ const { database, optionSets, appName = "app" } = Astro.props;
 const safeAppName = appName.replace(/[^a-z0-9]/gi, "-").toLowerCase() || "app";
 const types = database.types ?? [];
 const refs = database.refs ?? [];
+const viewRefs = buildViewRefs(database);
+const { incomingByType, outgoingByType } = indexRefsByType(viewRefs);
+const viewStats = buildViewStats(database, optionSets, viewRefs);
 const mermaidRefs = buildMermaidRefs(database);
 const canonicalDbml = emitDbml(buildDbmlModel({ database, optionSets }, { mode: "strict" }), safeAppName);
 const dbml = normalizeDbmlForViewer(canonicalDbml);
@@ -116,8 +120,8 @@ const typesByFieldCount = [...types]
   .slice(0, 5);
 
 const typeRelCounts = types.map((t) => {
-  const incoming = refs.filter((r) => r.toType === t.name).length;
-  const outgoing = refs.filter((r) => r.fromType === t.name).length;
+  const incoming = incomingByType.get(t.name)?.length ?? 0;
+  const outgoing = outgoingByType.get(t.name)?.length ?? 0;
   return { name: t.name, count: incoming + outgoing };
 });
 
@@ -127,7 +131,7 @@ const typesByRelCount = [...typeRelCounts]
   .slice(0, 5);
 
 const typesWithRels = new Set<string>();
-for (const ref of refs) {
+for (const ref of viewRefs) {
   typesWithRels.add(ref.fromType);
   typesWithRels.add(ref.toType);
 }
@@ -162,11 +166,11 @@ function getFieldTypeColor(field: Field): string {
 }
 
 function getIncomingRefs(typeName: string): Ref[] {
-  return refs.filter((r) => r.toType === typeName);
+  return incomingByType.get(typeName) ?? [];
 }
 
 function getOutgoingRefs(typeName: string): Ref[] {
-  return refs.filter((r) => r.fromType === typeName);
+  return outgoingByType.get(typeName) ?? [];
 }
 
 // ── Mermaid ERD generation ─────────────────────────────────────────────────
@@ -252,7 +256,7 @@ for (const ref of mermaidRefs) {
         </a>
       </div>
       <Text tag="p" variant="textSM" class="dark:text-base-400 text-base-500 mt-1">
-        {types.length} data types &middot; {totalFields} fields &middot; {refs.length} relationships
+        {viewStats.typeCount} data types &middot; {viewStats.fieldCount} fields &middot; {viewStats.relCount} relationships &middot; {viewStats.optionSetCount} option sets
       </Text>
     </div>
   </div>
@@ -352,7 +356,7 @@ for (const ref of mermaidRefs) {
       {types.map((type, typeIndex) => {
         const incoming = getIncomingRefs(type.name);
         const outgoing = getOutgoingRefs(type.name);
-        const relationshipFields = type.fields.filter((f) => f.isRelationship);
+        const relationshipCount = incoming.length + outgoing.length;
 
         return (
           <details class="group" data-type-card data-type-name={type.name}>
@@ -367,9 +371,9 @@ for (const ref of mermaidRefs) {
                 <span class="text-base-400 dark:text-base-600 text-xs shrink-0">
                   {type.fields.length} {type.fields.length === 1 ? "field" : "fields"}
                 </span>
-                {relationshipFields.length > 0 && (
+                {relationshipCount > 0 && (
                   <span class="text-amber-500/70 text-xs shrink-0">
-                    {relationshipFields.length} {relationshipFields.length === 1 ? "rel" : "rels"}
+                    {relationshipCount} {relationshipCount === 1 ? "rel" : "rels"}
                   </span>
                 )}
               </div>
