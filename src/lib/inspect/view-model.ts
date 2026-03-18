@@ -1,10 +1,13 @@
 import type { MermaidRef } from "@/lib/inspect/relationships";
 
 export interface ViewFieldLike {
+  key?: string;
   displayName: string;
   baseType?: string;
   rawType?: string;
   isList?: boolean;
+  dbType?: string;
+  isRelationship?: boolean;
 }
 
 export interface ViewTypeLike {
@@ -26,6 +29,15 @@ export interface ViewStats {
   fieldCount: number;
   relCount: number;
   optionSetCount: number;
+  deletedFieldCount: number;
+}
+
+export interface DeletedTypeLike extends ViewTypeLike {
+  fields: ViewFieldLike[];
+}
+
+interface BuildViewRefsOptions {
+  includeDeleted?: boolean;
 }
 
 function normalizeFieldName(name: string): string {
@@ -48,7 +60,11 @@ function extractCustomTypeKey(typeToken?: string): string | null {
   return null;
 }
 
-export function buildViewRefs(database: ViewDatabaseLike): MermaidRef[] {
+export function buildViewRefs(
+  database: ViewDatabaseLike,
+  options: BuildViewRefsOptions = {},
+): MermaidRef[] {
+  const includeDeleted = Boolean(options.includeDeleted);
   const types = database.types ?? [];
   const keyToName = new Map<string, string>();
   for (const type of types) keyToName.set(type.key, type.name);
@@ -59,7 +75,10 @@ export function buildViewRefs(database: ViewDatabaseLike): MermaidRef[] {
   for (const type of types) {
     for (const field of type.fields ?? []) {
       const fieldName = field.displayName ?? "";
-      if (!fieldName || isDeletedField(fieldName)) continue;
+      if (!fieldName) continue;
+      const deleted = isDeletedField(fieldName);
+      if (!includeDeleted && deleted) continue;
+      if (includeDeleted && !deleted) continue;
 
       // Exclude option set links from View refs.
       if ((field.baseType ?? "").startsWith("option.") || (field.rawType ?? "").startsWith("list.option.")) {
@@ -117,16 +136,34 @@ export function buildViewStats(
   database: ViewDatabaseLike,
   optionSets: ViewOptionSetsLike | undefined,
   refs: MermaidRef[],
+  options: { deletedFieldCount?: number } = {},
 ): ViewStats {
   const types = database.types ?? [];
   const fieldCount = types.reduce((sum, t) => sum + (t.fields?.length ?? 0), 0);
   const optionSetCount = optionSets?.items?.length ?? 0;
+  const deletedFieldCount = options.deletedFieldCount
+    ?? types.reduce(
+      (sum, t) => sum + (t.fields?.filter((f) => isDeletedField(f.displayName ?? "")).length ?? 0),
+      0,
+    );
 
   return {
     typeCount: types.length,
     fieldCount,
     relCount: refs.length,
     optionSetCount,
+    deletedFieldCount,
   };
 }
 
+export function buildDeletedTypes(database: ViewDatabaseLike): DeletedTypeLike[] {
+  const types = database.types ?? [];
+  const deletedTypes = types
+    .map((type) => ({
+      ...type,
+      fields: (type.fields ?? []).filter((field) => isDeletedField(field.displayName ?? "")),
+    }))
+    .filter((type) => type.fields.length > 0);
+
+  return deletedTypes;
+}

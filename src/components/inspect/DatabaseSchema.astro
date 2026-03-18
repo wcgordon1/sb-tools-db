@@ -2,7 +2,7 @@
 import Text from "@/components/fundations/elements/Text.astro";
 import { normalizeDbmlForViewer } from "@/lib/inspect/normalize-dbml";
 import { buildMermaidRefs, type MermaidRef } from "@/lib/inspect/relationships";
-import { buildViewRefs, buildViewStats, indexRefsByType } from "@/lib/inspect/view-model";
+import { buildDeletedTypes, buildViewRefs, buildViewStats, indexRefsByType } from "@/lib/inspect/view-model";
 import { buildDbmlModel } from "@/lib/inspect/build-dbml-model";
 import { emitDbml } from "@/lib/inspect/emit-dbml";
 
@@ -56,7 +56,11 @@ const types = database.types ?? [];
 const refs = database.refs ?? [];
 const viewRefs = buildViewRefs(database);
 const { incomingByType, outgoingByType } = indexRefsByType(viewRefs);
-const viewStats = buildViewStats(database, optionSets, viewRefs);
+const deletedTypes = buildDeletedTypes(database);
+const deletedFieldCount = deletedTypes.reduce((sum: number, t: DataType) => sum + t.fields.length, 0);
+const deletedRefs = buildViewRefs(database, { includeDeleted: true });
+const { incomingByType: deletedIncomingByType, outgoingByType: deletedOutgoingByType } = indexRefsByType(deletedRefs);
+const viewStats = buildViewStats(database, optionSets, viewRefs, { deletedFieldCount });
 const mermaidRefs = buildMermaidRefs(database);
 const canonicalDbml = emitDbml(buildDbmlModel({ database, optionSets }, { mode: "strict" }), safeAppName);
 const dbml = normalizeDbmlForViewer(canonicalDbml);
@@ -173,6 +177,14 @@ function getOutgoingRefs(typeName: string): Ref[] {
   return outgoingByType.get(typeName) ?? [];
 }
 
+function getDeletedIncomingRefs(typeName: string): Ref[] {
+  return deletedIncomingByType.get(typeName) ?? [];
+}
+
+function getDeletedOutgoingRefs(typeName: string): Ref[] {
+  return deletedOutgoingByType.get(typeName) ?? [];
+}
+
 // ── Mermaid ERD generation ─────────────────────────────────────────────────
 function sanitizeId(name: string): string {
   let result = name
@@ -274,6 +286,13 @@ for (const ref of mermaidRefs) {
       </button>
       <button
         class="text-sm font-medium dark:text-base-500 text-base-400 border-b-2 border-transparent pb-1 hover:dark:text-base-300 hover:text-base-600 transition-all duration-200 cursor-pointer"
+        data-tab="deleted"
+        data-active="false"
+      >
+        Deleted
+      </button>
+      <button
+        class="text-sm font-medium dark:text-base-500 text-base-400 border-b-2 border-transparent pb-1 hover:dark:text-base-300 hover:text-base-600 transition-all duration-200 cursor-pointer"
         data-tab="diagram"
         data-active="false"
       >
@@ -359,7 +378,7 @@ for (const ref of mermaidRefs) {
         const relationshipCount = incoming.length + outgoing.length;
 
         return (
-          <details class="group" data-type-card data-type-name={type.name}>
+          <details class="group" data-type-card-view data-type-name={type.name}>
             <summary class="flex items-center justify-between py-4 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
               <div class="flex items-center gap-3 min-w-0">
                 <span class="text-base-400 dark:text-base-600 text-xs font-mono tabular-nums w-6 shrink-0 text-right">
@@ -470,6 +489,134 @@ for (const ref of mermaidRefs) {
           </details>
         );
       })}
+    </div>
+  </div>
+
+  <!-- Deleted: Type Cards -->
+  <div data-db-panel="deleted" class="hidden">
+    <div class="flex flex-col gap-3">
+      <Text tag="p" variant="textSM" class="text-rose-500">
+        {viewStats.deletedFieldCount} deleted fields
+      </Text>
+      <div class="flex flex-col divide-y divide-base-200 dark:divide-base-800 border-y border-base-200 dark:border-base-800">
+        {deletedTypes.map((type, typeIndex) => {
+          const incoming = getDeletedIncomingRefs(type.name);
+          const outgoing = getDeletedOutgoingRefs(type.name);
+          const relationshipCount = incoming.length + outgoing.length;
+
+          return (
+            <details class="group" data-type-card-deleted data-type-name={type.name} open>
+              <summary class="flex items-center justify-between py-4 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="text-base-400 dark:text-base-600 text-xs font-mono tabular-nums w-6 shrink-0 text-right">
+                    {String(typeIndex + 1).padStart(2, "0")}
+                  </span>
+                  <span class="dark:text-white text-base-900 font-medium tracking-tight text-sm truncate">
+                    {type.name}
+                  </span>
+                  <span class="text-base-400 dark:text-base-600 text-xs shrink-0">
+                    {type.fields.length} {type.fields.length === 1 ? "field" : "fields"}
+                  </span>
+                  {relationshipCount > 0 && (
+                    <span class="text-amber-500/70 text-xs shrink-0">
+                      {relationshipCount} {relationshipCount === 1 ? "rel" : "rels"}
+                    </span>
+                  )}
+                </div>
+                <svg
+                  class="size-4 text-base-400 dark:text-base-600 shrink-0 transition-transform duration-200 group-open:rotate-180"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke-width="2"
+                  stroke="currentColor"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                </svg>
+              </summary>
+
+              <div class="pb-6 pl-9">
+                <div class="overflow-x-auto">
+                  <table class="w-full text-sm">
+                    <thead>
+                      <tr class="text-left text-xs text-base-400 dark:text-base-600 uppercase tracking-wider">
+                        <th class="pb-2 pr-4 font-medium">Field</th>
+                        <th class="pb-2 pr-4 font-medium">Type</th>
+                        <th class="pb-2 pr-4 font-medium hidden sm:table-cell">DB Type</th>
+                        <th class="pb-2 font-medium hidden md:table-cell">Flags</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-base-100 dark:divide-base-800/50">
+                      {type.fields.map((field) => (
+                        <tr>
+                          <td class="py-1.5 pr-4">
+                            <span class="dark:text-base-300 text-base-700 text-sm">
+                              {field.displayName}
+                            </span>
+                          </td>
+                          <td class="py-1.5 pr-4">
+                            <span class={`text-xs font-mono ${getFieldTypeColor(field)}`}>
+                              {getFieldTypeLabel(field)}
+                            </span>
+                          </td>
+                          <td class="py-1.5 pr-4 hidden sm:table-cell">
+                            <span class="text-xs font-mono dark:text-base-500 text-base-400">
+                              {field.dbType}
+                            </span>
+                          </td>
+                          <td class="py-1.5 hidden md:table-cell">
+                            <div class="flex gap-1.5">
+                              {field.isList && (
+                                <span class="inline-flex items-center rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/20">
+                                  list
+                                </span>
+                              )}
+                              {field.isRelationship && (
+                                <span class="inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400 ring-1 ring-amber-500/20">
+                                  rel
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {(incoming.length > 0 || outgoing.length > 0) && (
+                  <div class="mt-4 pt-4 border-t border-base-100 dark:border-base-800/50">
+                    <span class="text-xs font-medium uppercase tracking-wider text-base-400 dark:text-base-600">
+                      Relationships
+                    </span>
+                    <div class="mt-2 flex flex-col gap-1">
+                      {outgoing.map((ref) => (
+                        <span class="text-xs dark:text-base-400 text-base-500">
+                          <span class="font-mono text-amber-600 dark:text-amber-400">{ref.fromField}</span>
+                          <span class="dark:text-base-600 text-base-300 mx-1">&rarr;</span>
+                          <button data-goto-type={ref.toType} class="dark:text-base-300 text-base-700 hover:underline cursor-pointer">{ref.toType}</button>
+                          {ref.isList && (
+                            <span class="ml-1 text-blue-500/70">(many)</span>
+                          )}
+                        </span>
+                      ))}
+                      {incoming.map((ref) => (
+                        <span class="text-xs dark:text-base-400 text-base-500">
+                          <button data-goto-type={ref.fromType} class="dark:text-base-300 text-base-700 hover:underline cursor-pointer">{ref.fromType}</button>
+                          <span class="dark:text-base-600 text-base-300 mx-1">&rarr;</span>
+                          <span class="font-mono text-amber-600 dark:text-amber-400">{ref.fromField}</span>
+                          {ref.isList && (
+                            <span class="ml-1 text-blue-500/70">(many)</span>
+                          )}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </details>
+          );
+        })}
+      </div>
     </div>
   </div>
 
@@ -674,7 +821,7 @@ for (const ref of mermaidRefs) {
           p.classList.toggle("hidden", p.getAttribute("data-db-panel") !== target);
         });
 
-        legend?.classList.toggle("hidden", target !== "view");
+        legend?.classList.toggle("hidden", target !== "view" && target !== "deleted");
 
         if (downloadBtn) {
           if (target === "diagram") {
@@ -733,11 +880,11 @@ for (const ref of mermaidRefs) {
     });
 
     // Accordion
-    const cards = container.querySelectorAll("[data-type-card]");
-    cards.forEach((card) => {
+    const viewCards = container.querySelectorAll("[data-type-card-view]");
+    viewCards.forEach((card) => {
       card.addEventListener("toggle", () => {
         if ((card as HTMLDetailsElement).open) {
-          cards.forEach((other) => {
+          viewCards.forEach((other) => {
             if (other !== card && (other as HTMLDetailsElement).open) {
               (other as HTMLDetailsElement).open = false;
             }
@@ -751,10 +898,15 @@ for (const ref of mermaidRefs) {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         const typeName = btn.getAttribute("data-goto-type");
-        const target = container.querySelector(`[data-type-name="${CSS.escape(typeName ?? "")}"]`) as HTMLDetailsElement | null;
+        const sourcePanel = (btn as HTMLElement).closest("[data-db-panel]") as HTMLElement | null;
+        const target =
+          sourcePanel?.querySelector(`[data-type-name="${CSS.escape(typeName ?? "")}"]`) as HTMLDetailsElement | null
+          ?? container.querySelector(`[data-type-name="${CSS.escape(typeName ?? "")}"]`) as HTMLDetailsElement | null;
         if (!target) return;
 
-        cards.forEach((c) => { (c as HTMLDetailsElement).open = false; });
+        if (sourcePanel?.getAttribute("data-db-panel") === "view") {
+          viewCards.forEach((c) => { (c as HTMLDetailsElement).open = false; });
+        }
         target.open = true;
         target.scrollIntoView({ behavior: "smooth", block: "start" });
       });
