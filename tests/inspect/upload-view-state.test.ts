@@ -11,13 +11,18 @@ import {
 
 describe("upload view state", () => {
   it("parses valid query params", () => {
-    const state = parseInspectorViewStateFromSearch("?tab=graph&page=home&reusable=global&workflow=page:home:wf1&edge=edge1&pageTab=reusables");
+    const state = parseInspectorViewStateFromSearch("?tab=graph&page=home&reusable=global&workflow=page:home:wf1&edge=edge1&pageTab=reusables&graphNode=page:home&graphDepth=2&graphTarget=api:bTHcX.bTHdH&graphTypes=workflow_calls_api_connector");
     expect(state).toEqual({
       tab: "graph",
       selectedPage: "home",
       selectedReusable: "global",
       selectedWorkflow: "page:home:wf1",
       selectedEdge: "edge1",
+      selectedGraphNode: "page:home",
+      selectedGraphEdge: "edge1",
+      graphHopDepth: 2,
+      graphPathTargetNode: "api:bTHcX.bTHdH",
+      graphEdgeTypes: "workflow_calls_api_connector",
       selectedPageTab: "reusables",
       expandedByContext: {},
       linkedWorkflowFromEdge: null,
@@ -43,22 +48,35 @@ describe("upload view state", () => {
       selectedReusable: null,
       selectedWorkflow: "api:bTHJC:bTHJC",
       selectedEdge: null,
+      selectedGraphNode: null,
+      selectedGraphEdge: null,
+      graphHopDepth: 1,
+      graphPathTargetNode: null,
+      graphEdgeTypes: null,
       selectedPageTab: "workflows",
       expandedByContext: {},
       linkedWorkflowFromEdge: null,
     });
 
-    expect(search).toBe("?tab=backend&page=bTHDm&workflow=api%3AbTHJC%3AbTHJC&pageTab=workflows");
+    expect(search).toBe("?tab=backend&page=bTHDm&workflow=api%3AbTHJC%3AbTHJC&graphDepth=1&pageTab=workflows");
   });
 
   it("merges patches", () => {
     const current = defaultInspectorViewState();
-    const merged = mergeInspectorViewState(current, { tab: "api", selectedEdge: "x" });
+    const merged = mergeInspectorViewState(current, { tab: "api", selectedEdge: "x", selectedGraphEdge: "x", graphHopDepth: 2 });
     expect(merged.tab).toBe("api");
     expect(merged.selectedEdge).toBe("x");
+    expect(merged.selectedGraphEdge).toBe("x");
+    expect(merged.graphHopDepth).toBe(2);
     expect(merged.selectedPage).toBeNull();
     expect(merged.expandedByContext).toEqual({});
     expect(merged.linkedWorkflowFromEdge).toBeNull();
+  });
+
+  it("maps legacy edge query param to selectedGraphEdge for compatibility", () => {
+    const state = parseInspectorViewStateFromSearch("?tab=graph&edge=edge:legacy:1");
+    expect(state.selectedEdge).toBe("edge:legacy:1");
+    expect(state.selectedGraphEdge).toBe("edge:legacy:1");
   });
 
   it("resolves context keys for tabs", () => {

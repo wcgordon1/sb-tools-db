@@ -223,6 +223,16 @@ describe("bubble upload parser", () => {
     expect(firstCall?.requestParams).toBeTruthy();
     expect(firstCall?.responseSummary).toBeTruthy();
     expect(Array.isArray(firstCall?.responseSummary.topLevelFields)).toBe(true);
+    expect(firstCall?.responseSummary.totalFieldEstimate).toBeGreaterThan(0);
+    expect(firstCall?.responseSummary.fields.length).toBeGreaterThan(0);
+    expect(firstCall?.responseSummary.groups.length).toBeGreaterThan(0);
+    expect(firstCall?.responseSummary.topLevelFields[0]?.path).not.toMatch(/^\d+$/);
+    expect(firstCall?.responseSummary.fields[0]).toMatchObject({
+      path: expect.stringContaining("."),
+      pathSegments: expect.any(Array),
+      caption: expect.any(String),
+      type: expect.any(String),
+    });
   });
 
   it("is deterministic for the same input", () => {

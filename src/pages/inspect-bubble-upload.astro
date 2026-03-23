@@ -61,6 +61,17 @@ import DeepLinkState from "@/components/inspect-upload/DeepLinkState.astro";
   <script>
     import { loadBubbleExport } from "@/lib/inspect/parse-bubble-upload";
     import {
+      ALL_GRAPH_EDGE_TYPES,
+      EDGE_TYPE_LABELS,
+      NODE_TYPE_LABELS,
+      buildEgoSubgraph,
+      buildGraphIndex,
+      layoutEgoGraph,
+      parseGraphTypesParam,
+      serializeGraphTypesParam,
+      shortestDirectedPath,
+    } from "@/lib/inspect/graph-explorer";
+    import {
       defaultInspectorViewState,
       getExpandedWorkflow,
       mergeInspectorViewState,
@@ -90,7 +101,16 @@ import DeepLinkState from "@/components/inspect-upload/DeepLinkState.astro";
     const pageDetailTemplate = document.querySelector("#page-detail-template");
 
     let parsed = null;
+    let graphIndex = null;
     let viewState = parseInspectorViewStateFromSearch(window.location.search);
+    let graphInspectorTab = "node";
+    const searchState = {
+      pageList: "",
+      reusableList: "",
+      backend: "",
+      api: "",
+      graph: "",
+    };
 
     function esc(value) {
       return String(value ?? "")
@@ -99,6 +119,75 @@ import DeepLinkState from "@/components/inspect-upload/DeepLinkState.astro";
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#39;");
+    }
+
+    function formatNumber(value) {
+      const num = Number(value);
+      if (Number.isFinite(num)) return new Intl.NumberFormat("en-US").format(num);
+      return String(value ?? 0);
+    }
+
+    function normalizeSearchText(value) {
+      return String(value ?? "")
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, " ");
+    }
+
+    function matchesLooseSearch(haystack, query) {
+      const normalizedQuery = normalizeSearchText(query);
+      if (!normalizedQuery) return true;
+      const normalizedHaystack = normalizeSearchText(haystack);
+      const tokens = normalizedQuery.split(" ").filter(Boolean);
+      return tokens.every((token) => normalizedHaystack.includes(token));
+    }
+
+    function renderSearchControl({ id, placeholder, value }) {
+      const hasValue = Boolean(normalizeSearchText(value));
+      return `
+        <div class="mb-3 flex items-center gap-2" data-search-shell="${esc(id)}">
+          <input
+            type="search"
+            value="${esc(value)}"
+            placeholder="${esc(placeholder)}"
+            data-search-input="${esc(id)}"
+            class="w-full rounded-md border border-base-200 dark:border-base-800 bg-white dark:bg-base-900 px-3 py-2 text-sm dark:text-base-100 text-base-900 placeholder:text-base-400 dark:placeholder:text-base-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+          />
+          <button
+            type="button"
+            data-search-clear="${esc(id)}"
+            ${hasValue ? "" : "disabled"}
+            class="rounded-md border border-base-200 dark:border-base-800 px-3 py-2 text-xs font-medium dark:text-base-200 text-base-700 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+          >
+            Clear
+          </button>
+        </div>
+      `;
+    }
+
+    function ensureSearchShell(id, slot, placeholder) {
+      if (!(slot instanceof HTMLElement)) return;
+      let shell = slot.querySelector(`[data-search-shell="${id}"]`);
+      if (!(shell instanceof HTMLElement)) {
+        slot.insertAdjacentHTML(
+          "afterbegin",
+          `${renderSearchControl({ id, placeholder, value: searchState[id] ?? "" })}<div data-search-results="${id}"></div>`,
+        );
+        shell = slot.querySelector(`[data-search-shell="${id}"]`);
+      }
+      const input = shell?.querySelector(`[data-search-input="${id}"]`);
+      if (input instanceof HTMLInputElement && input.value !== (searchState[id] ?? "")) {
+        input.value = searchState[id] ?? "";
+      }
+      const clear = shell?.querySelector(`[data-search-clear="${id}"]`);
+      if (clear instanceof HTMLButtonElement) {
+        clear.disabled = !Boolean(normalizeSearchText(searchState[id] ?? ""));
+      }
+    }
+
+    function setSearchResults(id, html) {
+      const container = document.querySelector(`[data-search-results="${id}"]`);
+      if (container instanceof HTMLElement) container.innerHTML = html;
     }
 
     function setStatus(text, type = "neutral") {
@@ -172,26 +261,44 @@ import DeepLinkState from "@/components/inspect-upload/DeepLinkState.astro";
         ["Actions", data.counts.actions],
         ["Graph Edges", data.counts.graphEdges],
       ];
+      const dotByLabel = {
+        Pages: "bg-emerald-500",
+        Reusables: "bg-sky-500",
+        "Frontend WF": "bg-amber-500",
+        "Backend WF": "bg-cyan-500",
+        "API Calls": "bg-indigo-500",
+        Actions: "bg-violet-500",
+        "Graph Edges": "bg-rose-500",
+      };
 
       summaryCards.innerHTML = stats
         .map(
-          ([label, value], idx) => `
+          ([label, value]) => `
           <div class="rounded-xl border border-base-200 dark:border-base-800 p-3.5 bg-white dark:bg-base-900/70" data-summary-kpi="${esc(label)}">
             <div class="flex items-center gap-1.5">
-              <span class="size-1.5 rounded-full ${idx % 3 === 0 ? "bg-emerald-500" : (idx % 3 === 1 ? "bg-base-400 dark:bg-base-500" : "bg-amber-500")}"></span>
+              <span class="size-1.5 rounded-full ${dotByLabel[label] ?? "bg-base-400 dark:bg-base-500"}"></span>
               <div class="text-[10px] uppercase tracking-[0.12em] font-medium dark:text-base-500 text-base-400">${esc(label)}</div>
             </div>
-            <div class="text-3xl font-semibold leading-tight dark:text-white text-base-900 mt-1 tabular-nums">${esc(value)}</div>
-            <div class="text-[11px] dark:text-base-500 text-base-400 mt-0.5">${label === "Frontend WF" ? "Effective counts include reusable flows" : "Parsed from uploaded export"}</div>
+            <div class="text-3xl font-semibold leading-tight mt-1 tabular-nums dark:text-white text-base-900">${formatNumber(value)}</div>
           </div>
         `,
         )
         .join("");
     }
 
-    function renderPageList() {
+    function buildPageListResultsMarkup() {
       const pages = parsed.tree.pages;
-      pageListSlot.innerHTML = pages
+      const filteredPages = pages.filter((page) => {
+        const effective = page.effectiveWorkflowCount ?? page.workflowCount;
+        const base = page.baseWorkflowCount ?? page.workflowCount;
+        const reusableCount = page.effectiveReusableWorkflowCount ?? Math.max(0, effective - base);
+        return matchesLooseSearch(
+          `${page.name ?? ""} ${page.key} ${effective} ${base} ${reusableCount}`,
+          searchState.pageList,
+        );
+      });
+
+      return filteredPages
         .map((page) => {
           const selected = viewState.selectedPage === page.key;
           const effective = page.effectiveWorkflowCount ?? page.workflowCount;
@@ -206,14 +313,40 @@ import DeepLinkState from "@/components/inspect-upload/DeepLinkState.astro";
             >
               <div class="flex items-center justify-between gap-2">
                 <span class="text-base font-medium dark:text-white text-base-900">${esc(page.name ?? page.key)}</span>
-                <span class="text-xs dark:text-base-500 text-base-400">${esc(effective)} wf</span>
+                <span class="text-xs dark:text-base-500 text-base-400">${formatNumber(effective)} wf</span>
               </div>
-              <div class="text-[11px] dark:text-base-500 text-base-400 mt-1">${esc(base)} page + ${esc(reusableCount)} reusable</div>
+              <div class="text-[11px] dark:text-base-500 text-base-400 mt-1">${formatNumber(base)} page + ${formatNumber(reusableCount)} reusable</div>
               <div class="text-xs font-mono dark:text-base-500 text-base-400 mt-1">${esc(page.key)}</div>
             </button>
           `;
         })
         .join("");
+    }
+
+    function refreshPageSearchResults() {
+      const pageRows = buildPageListResultsMarkup();
+      setSearchResults("pageList", pageRows || '<p class="text-sm dark:text-base-500 text-base-400">No results</p>');
+    }
+
+    function refreshReusableSearchResults() {
+      renderReusablePanel();
+    }
+
+    function refreshBackendSearchResults() {
+      renderBackendPanel();
+    }
+
+    function refreshApiSearchResults() {
+      renderApiPanel();
+    }
+
+    function refreshGraphSearchResults() {
+      renderGraphPanel();
+    }
+
+    function renderPageList() {
+      ensureSearchShell("pageList", pageListSlot, "Search pages by name, key, or counts");
+      refreshPageSearchResults();
     }
 
     function renderBackendParams(params) {
@@ -325,15 +458,30 @@ import DeepLinkState from "@/components/inspect-upload/DeepLinkState.astro";
       cardSlot.innerHTML = `
         <div class="rounded-xl border border-base-200 dark:border-base-800 p-4 bg-base-50 dark:bg-base-950">
           <div class="text-base font-medium dark:text-white text-base-900">${esc(page.name ?? page.key)}</div>
-          <div class="text-xs dark:text-base-500 text-base-400 mt-1">${esc(effectiveWorkflowCount)} workflows (${esc(baseWorkflowCount)} page + ${esc(reusableWorkflowCount)} reusable) · ${esc(page.actionCount)} actions · ${esc(usages.length)} reusable groups</div>
+          <div class="text-xs dark:text-base-500 text-base-400 mt-1">
+            <span>Total: <span class="font-semibold text-emerald-700 dark:text-emerald-300">${formatNumber(effectiveWorkflowCount)}</span></span>
+            <span class="mx-1.5">·</span>
+            <span>Page: <span class="font-semibold text-sky-700 dark:text-sky-300">${formatNumber(baseWorkflowCount)}</span></span>
+            <span class="mx-1.5">·</span>
+            <span>Reusable: <span class="font-semibold text-amber-700 dark:text-amber-300">${formatNumber(reusableWorkflowCount)}</span></span>
+            <span class="mx-1.5">·</span>
+            <span>${formatNumber(page.actionCount)} actions</span>
+            <span class="mx-1.5">·</span>
+            <span>${formatNumber(usages.length)} reusable groups</span>
+          </div>
           <div class="text-xs font-mono dark:text-base-500 text-base-400 mt-1">${esc(page.key)}</div>
         </div>
       `;
 
       subtabSlot.innerHTML = `
         <div class="flex items-center gap-2 pt-1" role="tablist" aria-label="Page detail tabs">
-          <button class="rounded-md px-3 py-1.5 text-sm font-medium ring-1 ${selectedPageTab === "workflows" ? "bg-base-200 dark:bg-base-800 ring-base-300 dark:ring-base-700 text-base-900 dark:text-white" : "ring-base-200 dark:ring-base-800 text-base-600 dark:text-base-300"} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" data-action="select-page-tab" data-page-tab="workflows" role="tab" aria-selected="${selectedPageTab === "workflows" ? "true" : "false"}">Workflows (${esc(effectiveWorkflowCount)})</button>
-          <button class="rounded-md px-3 py-1.5 text-sm font-medium ring-1 ${selectedPageTab === "reusables" ? "bg-base-200 dark:bg-base-800 ring-base-300 dark:ring-base-700 text-base-900 dark:text-white" : "ring-base-200 dark:ring-base-800 text-base-600 dark:text-base-300"} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" data-action="select-page-tab" data-page-tab="reusables" role="tab" aria-selected="${selectedPageTab === "reusables" ? "true" : "false"}">Reusables (${esc(usages.length)})</button>
+          <button class="rounded-md px-3 py-1.5 text-sm font-medium ring-1 ${selectedPageTab === "workflows" ? "bg-base-200 dark:bg-base-800 ring-base-300 dark:ring-base-700 text-base-900 dark:text-white" : "ring-base-200 dark:ring-base-800 text-base-600 dark:text-base-300"} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" data-action="select-page-tab" data-page-tab="workflows" role="tab" aria-selected="${selectedPageTab === "workflows" ? "true" : "false"}">Workflows (${formatNumber(effectiveWorkflowCount)} total)</button>
+          <button class="rounded-md px-3 py-1.5 text-sm font-medium ring-1 ${selectedPageTab === "reusables" ? "bg-base-200 dark:bg-base-800 ring-base-300 dark:ring-base-700 text-base-900 dark:text-white" : "ring-base-200 dark:ring-base-800 text-base-600 dark:text-base-300"} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" data-action="select-page-tab" data-page-tab="reusables" role="tab" aria-selected="${selectedPageTab === "reusables" ? "true" : "false"}">Reusables (${formatNumber(usages.length)})</button>
+        </div>
+        <div class="text-[11px] mt-2 dark:text-base-500 text-base-400">
+          Total: <span class="font-semibold text-emerald-700 dark:text-emerald-300">${formatNumber(effectiveWorkflowCount)}</span> ·
+          Page: <span class="font-semibold text-sky-700 dark:text-sky-300">${formatNumber(baseWorkflowCount)}</span> ·
+          Reusable: <span class="font-semibold text-amber-700 dark:text-amber-300">${formatNumber(reusableWorkflowCount)}</span>
         </div>
       `;
 
@@ -344,7 +492,7 @@ import DeepLinkState from "@/components/inspect-upload/DeepLinkState.astro";
             <summary class="cursor-pointer">
               <div class="flex items-center justify-between gap-2">
                 <button class="text-sm font-medium underline ${viewState.selectedReusable === usage.reusableKey ? "text-emerald-700 dark:text-emerald-300" : "dark:text-white text-base-900"} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 rounded" data-action="select-reusable" data-reusable-key="${esc(usage.reusableKey)}" aria-selected="${viewState.selectedReusable === usage.reusableKey ? "true" : "false"}">${esc(usage.reusableName ?? usage.reusableKey)}</button>
-                <span class="text-xs dark:text-base-500 text-base-400">${esc(usage.instanceCount)} instances</span>
+                <span class="text-xs dark:text-base-500 text-base-400">${formatNumber(usage.instanceCount)} instances</span>
               </div>
             </summary>
             <div class="mt-2 text-[11px] dark:text-base-400 text-base-500">
@@ -386,6 +534,15 @@ import DeepLinkState from "@/components/inspect-upload/DeepLinkState.astro";
       if (!reusableListSlot || !reusableDetailSlot || !reusableCountsSlot) return;
 
       const reusables = parsed.tree.reusables;
+      const filteredReusables = reusables.filter((node) => {
+        const usedOnPageCount = parsed.tree.pages.filter((page) =>
+          (parsed.pageReusableMap[page.key] ?? []).some((usage) => usage.reusableKey === node.key),
+        ).length;
+        return matchesLooseSearch(
+          `${node.name ?? ""} ${node.key} ${node.workflowCount} ${usedOnPageCount}`,
+          searchState.reusableList,
+        );
+      });
       const selectedReusable = reusables.find((node) => node.key === viewState.selectedReusable) ?? reusables[0] ?? null;
       const reusableUsageByPage = parsed.tree.pages
         .map((page) => {
@@ -399,8 +556,8 @@ import DeepLinkState from "@/components/inspect-upload/DeepLinkState.astro";
         viewState = mergeInspectorViewState(viewState, { selectedReusable: selectedReusable.key });
       }
 
-      reusableCountsSlot.textContent = `${reusables.length} reusables`;
-      reusableListSlot.innerHTML = reusables
+      reusableCountsSlot.textContent = `${formatNumber(reusables.length)} reusables`;
+      const reusableRows = filteredReusables
         .map((node) => {
           const selected = selectedReusable?.key === node.key;
           const usedOnPageCount = parsed.tree.pages.filter((page) =>
@@ -414,12 +571,14 @@ import DeepLinkState from "@/components/inspect-upload/DeepLinkState.astro";
               aria-current="${selected ? "true" : "false"}"
             >
               <div class="text-sm font-medium dark:text-white text-base-900">${esc(node.name ?? node.key)}</div>
-              <div class="text-xs dark:text-base-500 text-base-400 mt-1">${esc(node.workflowCount)} workflows · ${esc(usedOnPageCount)} pages</div>
+              <div class="text-xs dark:text-base-500 text-base-400 mt-1">${formatNumber(node.workflowCount)} workflows · ${formatNumber(usedOnPageCount)} pages</div>
               <div class="text-xs font-mono dark:text-base-500 text-base-400 mt-1">${esc(node.key)}</div>
             </button>
           `;
         })
         .join("");
+      ensureSearchShell("reusableList", reusableListSlot, "Search reusables by name, key, or counts");
+      setSearchResults("reusableList", reusableRows || '<p class="text-sm dark:text-base-500 text-base-400">No results</p>');
 
       if (!selectedReusable) {
         reusableDetailSlot.innerHTML = '<p class="text-sm dark:text-base-500 text-base-400">No reusable elements found.</p>';
@@ -430,7 +589,11 @@ import DeepLinkState from "@/components/inspect-upload/DeepLinkState.astro";
       reusableDetailSlot.innerHTML = `
         <div class="rounded-xl border border-base-200 dark:border-base-800 p-4 bg-base-50 dark:bg-base-950">
           <div class="text-base font-medium dark:text-white text-base-900">${esc(selectedReusable.name ?? selectedReusable.key)}</div>
-          <div class="text-xs dark:text-base-500 text-base-400 mt-1">${esc(selectedReusable.workflowCount)} workflows · ${esc(selectedReusable.actionCount)} actions · used on ${esc(reusableUsageByPage.length)} pages</div>
+          <div class="text-xs dark:text-base-500 text-base-400 mt-1">
+            <span class="font-semibold text-emerald-700 dark:text-emerald-300">${formatNumber(selectedReusable.workflowCount)}</span> workflows ·
+            <span class="font-semibold text-sky-700 dark:text-sky-300">${formatNumber(selectedReusable.actionCount)}</span> actions ·
+            used on <span class="font-semibold text-amber-700 dark:text-amber-300">${formatNumber(reusableUsageByPage.length)}</span> pages
+          </div>
           <div class="text-xs font-mono dark:text-base-500 text-base-400 mt-1">${esc(selectedReusable.key)}</div>
         </div>
         <div class="rounded-xl border border-base-200 dark:border-base-800 p-4 bg-base-50 dark:bg-base-950 mt-3">
@@ -438,9 +601,9 @@ import DeepLinkState from "@/components/inspect-upload/DeepLinkState.astro";
           ${
             reusableUsageByPage.length
               ? reusableUsageByPage.map((row) => `
-                  <div class="rounded-lg border border-base-200 dark:border-base-800 p-3 mb-2 bg-white dark:bg-base-900">
-                    <div class="text-sm font-medium dark:text-white text-base-900">${esc(row.page.name ?? row.page.key)}</div>
-                    <div class="text-xs dark:text-base-500 text-base-400 mt-1">${esc(row.usage.instanceCount)} instances</div>
+                    <div class="rounded-lg border border-base-200 dark:border-base-800 p-3 mb-2 bg-white dark:bg-base-900">
+                      <div class="text-sm font-medium dark:text-white text-base-900">${esc(row.page.name ?? row.page.key)}</div>
+                    <div class="text-xs dark:text-base-500 text-base-400 mt-1">${formatNumber(row.usage.instanceCount)} instances</div>
                     <div class="text-[11px] font-mono dark:text-base-500 text-base-400 mt-1">${row.usage.directInstancePaths.concat(row.usage.nestedInstancePaths).slice(0, 4).map(esc).join("<br/>")}</div>
                   </div>
                 `).join("")
@@ -453,7 +616,13 @@ import DeepLinkState from "@/components/inspect-upload/DeepLinkState.astro";
 
     function renderBackendPanel() {
       const workflows = parsed.tree.api;
-      backendSlot.innerHTML = workflows
+      const filteredWorkflows = workflows.filter((wfNode) =>
+        matchesLooseSearch(
+          `${wfNode.key} ${wfNode.workflows[0]?.display?.displayLabel ?? ""} ${wfNode.workflows[0]?.display?.triggerSubtitle ?? ""}`,
+          searchState.backend,
+        ),
+      );
+      const rows = filteredWorkflows
         .map((wfNode) => `
           <div class="rounded-xl border border-base-200 dark:border-base-800 p-4 mb-4 bg-base-50 dark:bg-base-950">
             <div class="text-sm font-medium dark:text-white text-base-900">${esc(wfNode.workflows[0].display.displayLabel)}</div>
@@ -462,6 +631,8 @@ import DeepLinkState from "@/components/inspect-upload/DeepLinkState.astro";
           </div>
         `)
         .join("");
+      ensureSearchShell("backend", backendSlot, "Search backend workflows by name, key, or trigger");
+      setSearchResults("backend", rows || '<p class="text-sm dark:text-base-500 text-base-400">No results</p>');
     }
 
     function renderApiParamSection(call, location, heading) {
@@ -496,8 +667,57 @@ import DeepLinkState from "@/components/inspect-upload/DeepLinkState.astro";
         .replace(/\b\w/g, (char) => char.toUpperCase());
     }
 
+    function renderApiResponseGroups(call) {
+      const groups = call.responseSummary?.groups ?? [];
+      if (!groups.length) {
+        return `<div class="text-[11px] dark:text-base-500 text-base-400">No response metadata</div>`;
+      }
+
+      return groups
+        .map((group) => `
+          <div class="rounded-md border border-base-200 dark:border-base-800 p-2">
+            <div class="text-[11px] font-medium dark:text-base-200 text-base-800">${esc(group.label)} <span class="dark:text-base-500 text-base-400">(${formatNumber(group.fieldCount)})</span></div>
+            <div class="mt-1 flex flex-col gap-1">
+              ${group.fields
+                .map((field) => `
+                  <div class="text-[11px]">
+                    <div class="dark:text-base-200 text-base-800">${esc(field.caption ?? field.path)}</div>
+                    <div class="font-mono dark:text-base-500 text-base-400">${esc(field.path)} · ${esc(field.type)}${field.sampleValue ? ` · sample: ${esc(field.sampleValue)}` : ""}</div>
+                  </div>
+                `)
+                .join("")}
+            </div>
+          </div>
+        `)
+        .join("");
+    }
+
     function renderApiPanel() {
-      apiCallsSlot.innerHTML = parsed.tree.apiConnectorGroups
+      const query = searchState.api;
+      const filteredGroups = parsed.tree.apiConnectorGroups
+        .map((group) => {
+          const groupMatch = matchesLooseSearch(`${group.connectorName ?? ""} ${group.connectorId}`, query);
+          if (groupMatch) return group;
+
+          const filteredResources = group.resources
+            .map((resource) => {
+              const resourceMatch = matchesLooseSearch(resource.resourceKey, query);
+              if (resourceMatch) return resource;
+              const filteredCalls = resource.calls.filter((call) =>
+                matchesLooseSearch(
+                  `${call.name ?? ""} ${call.callId} ${call.technicalLabel} ${call.method ?? ""} ${call.url ?? ""}`,
+                  query,
+                ),
+              );
+              return filteredCalls.length ? { ...resource, calls: filteredCalls } : null;
+            })
+            .filter(Boolean);
+          if (!filteredResources.length) return null;
+          return { ...group, resources: filteredResources };
+        })
+        .filter(Boolean);
+
+      const rows = filteredGroups
         .map((group) => `
           <details class="rounded-xl border border-base-200 dark:border-base-800 p-4 mb-4 bg-base-50 dark:bg-base-950" open>
             <summary class="cursor-pointer text-base font-medium dark:text-white text-base-900">${esc(group.connectorName ?? group.connectorId)} <span class="text-xs font-mono dark:text-base-500 text-base-400">(${esc(group.connectorId)})</span></summary>
@@ -505,7 +725,7 @@ import DeepLinkState from "@/components/inspect-upload/DeepLinkState.astro";
               ${group.resources
                 .map((resource) => `
                   <details class="rounded-lg border border-base-200 dark:border-base-800 p-3 bg-white dark:bg-base-900" open>
-                    <summary class="cursor-pointer text-sm font-medium dark:text-white text-base-900">${esc(titleCaseResource(resource.resourceKey))} <span class="text-xs dark:text-base-500 text-base-400">(${esc(resource.calls.length)} calls)</span></summary>
+                    <summary class="cursor-pointer text-sm font-medium dark:text-white text-base-900">${esc(titleCaseResource(resource.resourceKey))} <span class="text-xs dark:text-base-500 text-base-400">(${formatNumber(resource.calls.length)} calls)</span></summary>
                     <div class="mt-2 flex flex-col gap-3">
                       ${resource.calls
                         .map((call) => `
@@ -524,11 +744,10 @@ import DeepLinkState from "@/components/inspect-upload/DeepLinkState.astro";
                               ${renderApiParamSection(call, "query", "Query Params")}
                               ${renderApiParamSection(call, "body", "Body Params")}
                               <details class="mt-3">
-                                <summary class="text-[11px] cursor-pointer dark:text-base-500 text-base-400">Response summary (${esc(call.responseSummary?.totalFieldEstimate ?? 0)} fields${call.responseSummary?.truncated ? ", truncated" : ""})</summary>
-                                <div class="mt-1 flex flex-col gap-1">
-                                  ${(call.responseSummary?.topLevelFields ?? [])
-                                    .map((field) => `<div class="text-[11px] font-mono dark:text-base-500 text-base-400">${esc(field.path)}: ${esc(field.type)}</div>`)
-                                    .join("") || '<div class="text-[11px] dark:text-base-500 text-base-400">No response metadata</div>'}
+                                <summary class="text-[11px] cursor-pointer dark:text-base-500 text-base-400">Response summary (${formatNumber(call.responseSummary?.totalFieldEstimate ?? 0)} fields${call.responseSummary?.truncated ? ", truncated" : ""})</summary>
+                                <div class="mt-1 flex flex-col gap-2">
+                                  ${call.responseSummary?.parseError ? `<div class="text-[11px] text-rose-600 dark:text-rose-300">${esc(call.responseSummary.parseError)}</div>` : ""}
+                                  ${renderApiResponseGroups(call)}
                                 </div>
                               </details>
                             </div>
@@ -543,45 +762,269 @@ import DeepLinkState from "@/components/inspect-upload/DeepLinkState.astro";
           </details>
         `)
         .join("");
+      ensureSearchShell("api", apiCallsSlot, "Search API connector, resource, method, call id, or URL");
+      setSearchResults("api", rows || '<p class="text-sm dark:text-base-500 text-base-400">No results</p>');
     }
 
     function renderGraphPanel() {
       const graph = parsed.details.graph;
-      graphCountsSlot.textContent = `${graph.nodes.length} nodes · ${graph.edges.length} edges`;
+      if (!graphIndex) {
+        graphIndex = buildGraphIndex(graph);
+      }
+      graphCountsSlot.textContent = `${formatNumber(graph.nodes.length)} nodes · ${formatNumber(graph.edges.length)} edges`;
 
-      const groups = {
-        page_contains_reusable: [],
-        reusable_contains_reusable: [],
-        workflow_triggers_workflow: [],
-        workflow_schedules_backend: [],
-        workflow_calls_api_connector: [],
-        workflow_navigates_page: [],
+      const defaultNode = graphIndex.sortedNodes.find((n) => n.type === "page")?.id ?? graphIndex.sortedNodes[0]?.id ?? null;
+      const selectedNodeId = graphIndex.nodesById.has(viewState.selectedGraphNode)
+        ? viewState.selectedGraphNode
+        : defaultNode;
+      if (selectedNodeId !== viewState.selectedGraphNode) {
+        viewState = mergeInspectorViewState(viewState, { selectedGraphNode: selectedNodeId });
+      }
+
+      const activeTypes = parseGraphTypesParam(viewState.graphEdgeTypes);
+      const sub = selectedNodeId
+        ? buildEgoSubgraph(graphIndex, selectedNodeId, viewState.graphHopDepth, activeTypes)
+        : { nodes: [], edges: [], hopsByNodeId: new Map() };
+      const layout = layoutEgoGraph(sub.nodes, sub.hopsByNodeId, selectedNodeId ?? "");
+      const posById = new Map(layout.nodes.map((node) => [node.id, node]));
+      const pathResult = selectedNodeId && viewState.graphPathTargetNode
+        ? shortestDirectedPath(graphIndex, selectedNodeId, viewState.graphPathTargetNode, activeTypes)
+        : null;
+      const pathEdgeSet = new Set(pathResult?.edgeIds ?? []);
+      const pathNodeSet = new Set(pathResult?.nodeIds ?? []);
+      const selectedEdgeId = viewState.selectedGraphEdge ?? viewState.selectedEdge;
+      const selectedEdge = selectedEdgeId ? graphIndex.edgesById.get(selectedEdgeId) ?? null : null;
+      const selectedNode = selectedNodeId ? graphIndex.nodesById.get(selectedNodeId) ?? null : null;
+
+      const nodeRows = graphIndex.sortedNodes
+        .filter((node) => matchesLooseSearch(`${node.label} ${node.id} ${node.type}`, searchState.graph))
+        .map((node) => `
+          <button
+            class="w-full text-left rounded-md border p-2 mb-1.5 ${node.id === selectedNodeId ? "border-emerald-500/40 bg-emerald-50 dark:bg-emerald-500/10" : "border-base-200 dark:border-base-800 bg-white dark:bg-base-900 hover:bg-base-100 dark:hover:bg-base-800"}"
+            data-action="select-graph-node"
+            data-graph-node="${esc(node.id)}"
+          >
+            <div class="text-xs font-medium dark:text-white text-base-900">${esc(node.label)}</div>
+            <div class="text-[10px] dark:text-base-500 text-base-400">${esc(node.id)}</div>
+            <div class="text-[10px] dark:text-base-400 text-base-500 mt-0.5">${esc(NODE_TYPE_LABELS[node.type])} · in ${formatNumber(node.inDegree)} · out ${formatNumber(node.outDegree)}</div>
+          </button>
+        `)
+        .join("");
+
+      const edgeColorByType = {
+        page_contains_reusable: "#059669",
+        reusable_contains_reusable: "#0ea5e9",
+        workflow_triggers_workflow: "#a855f7",
+        workflow_schedules_backend: "#f59e0b",
+        workflow_calls_api_connector: "#6366f1",
+        workflow_navigates_page: "#ef4444",
       };
 
-      graph.edges.forEach((edge) => groups[edge.type].push(edge));
+      const edgeLines = sub.edges
+        .map((edge) => {
+          const from = posById.get(edge.from);
+          const to = posById.get(edge.to);
+          if (!from || !to) return "";
+          const highlighted = pathEdgeSet.has(edge.id);
+          return `
+            <line
+              x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}"
+              stroke="${highlighted ? "#22c55e" : edgeColorByType[edge.type]}"
+              stroke-width="${highlighted ? "3" : "1.8"}"
+              marker-end="url(#graph-arrow)"
+              opacity="${selectedEdgeId && selectedEdgeId !== edge.id ? "0.35" : "1"}"
+              data-action="select-graph-edge"
+              data-graph-edge-id="${esc(edge.id)}"
+              class="cursor-pointer"
+            />
+          `;
+        })
+        .join("");
 
-      const sections = Object.entries(groups).map(([type, edges]) => `
-        <details class="rounded-md border border-base-200 dark:border-base-800 p-3 mb-2" ${viewState.selectedEdge?.startsWith(`edge:${type}`) ? "open" : ""}>
-          <summary class="cursor-pointer text-sm font-medium dark:text-white text-base-900">${esc(type)} (${edges.length})</summary>
-          <div class="mt-2 flex flex-col gap-1">
-            ${edges
-              .map(
-                (edge) => `
-              <button class="text-left text-xs font-mono rounded px-2 py-1 border ${viewState.selectedEdge === edge.id ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-300 dark:border-emerald-500/40 ring-1 ring-emerald-400/40" : "border-transparent hover:bg-base-100 dark:hover:bg-base-900"} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" data-action="select-edge" data-edge-id="${esc(edge.id)}" aria-selected="${viewState.selectedEdge === edge.id ? "true" : "false"}">
-                ${esc(edge.from)} -> ${esc(edge.to)} | ${esc(edge.label)}
-              </button>
-            `,
-              )
-              .join("")}
+      const nodeCircles = layout.nodes
+        .map((node) => {
+          const raw = graphIndex.nodesById.get(node.id);
+          if (!raw) return "";
+          const isCenter = node.id === selectedNodeId;
+          const inPath = pathNodeSet.has(node.id);
+          const border = raw.type === "page"
+            ? "#059669"
+            : raw.type === "reusable"
+              ? "#0ea5e9"
+              : raw.type === "workflow"
+                ? "#a855f7"
+                : raw.type === "backend"
+                  ? "#f59e0b"
+                  : "#6366f1";
+          return `
+            <g>
+              <circle
+                cx="${node.x}" cy="${node.y}" r="${isCenter ? 20 : 14}"
+                fill="${inPath ? "#dcfce7" : "#f8fafc"}"
+                stroke="${border}"
+                stroke-width="${isCenter ? "3" : "2"}"
+                data-action="select-graph-node"
+                data-graph-node="${esc(node.id)}"
+                class="cursor-pointer"
+              />
+              <text x="${node.x}" y="${node.y + 34}" text-anchor="middle" class="fill-base-600 dark:fill-base-300" style="font-size:10px;">${esc(raw.label).slice(0, 20)}</text>
+            </g>
+          `;
+        })
+        .join("");
+
+      const edgeFilterChips = ALL_GRAPH_EDGE_TYPES
+        .map((type) => {
+          const active = activeTypes.size === 0 || activeTypes.has(type);
+          return `
+            <button
+              class="rounded-full px-2.5 py-1 text-[11px] border ${active ? "border-emerald-500/50 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "border-base-200 dark:border-base-700 dark:text-base-300 text-base-600"}"
+              data-action="toggle-graph-type"
+              data-graph-type="${esc(type)}"
+            >${esc(EDGE_TYPE_LABELS[type])}</button>
+          `;
+        })
+        .join("");
+
+      const outgoing = selectedNode ? (graphIndex.outgoingByNode.get(selectedNode.id) ?? []) : [];
+      const incoming = selectedNode ? (graphIndex.incomingByNode.get(selectedNode.id) ?? []) : [];
+      const pathRows = pathResult
+        ? pathResult.edgeIds.map((edgeId, idx) => {
+          const edge = graphIndex.edgesById.get(edgeId);
+          if (!edge) return "";
+          const from = graphIndex.nodesById.get(pathResult.nodeIds[idx]);
+          const to = graphIndex.nodesById.get(pathResult.nodeIds[idx + 1]);
+          return `<div class="text-xs dark:text-base-300 text-base-700">${idx + 1}. ${esc(from?.label ?? edge.from)} -> ${esc(to?.label ?? edge.to)} · ${esc(edge.edgeHumanType)}</div>`;
+        }).join("")
+        : (viewState.graphPathTargetNode ? '<div class="text-xs text-rose-600 dark:text-rose-300">No directed path found under active filters.</div>' : '<div class="text-xs dark:text-base-500 text-base-400">Choose a target and trace path.</div>');
+
+      const rightPane = graphInspectorTab === "edge"
+        ? `
+          <div>
+            <div class="text-sm font-medium dark:text-white text-base-900">Edge Details</div>
+            ${
+              selectedEdge
+                ? `
+                  <div class="mt-2 text-xs dark:text-base-300 text-base-700">${esc(selectedEdge.edgeHumanType)}</div>
+                  <div class="text-[11px] dark:text-base-500 text-base-400 mt-1">${esc(selectedEdge.label)}</div>
+                  <div class="text-[11px] dark:text-base-500 text-base-400 mt-1">${esc(selectedEdge.from)} -> ${esc(selectedEdge.to)}</div>
+                  ${selectedEdge.sourceStep ? `<div class="text-[11px] dark:text-base-500 text-base-400 mt-1">source step: ${esc(selectedEdge.sourceStep)}</div>` : ""}
+                  ${selectedEdge.sourceWorkflow ? `<button class="mt-2 text-[11px] underline text-emerald-700 dark:text-emerald-300" data-action="open-edge-workflow" data-workflow-id="${esc(selectedEdge.sourceWorkflow)}">Open workflow</button>` : ""}
+                `
+                : '<div class="mt-2 text-xs dark:text-base-500 text-base-400">Select an edge in the canvas.</div>'
+            }
           </div>
-        </details>
-      `).join("");
+        `
+        : graphInspectorTab === "path"
+          ? `
+            <div>
+              <div class="text-sm font-medium dark:text-white text-base-900">Path Trace</div>
+              <div class="mt-2">
+                <input
+                  type="search"
+                  list="graph-node-options"
+                  value="${esc(viewState.graphPathTargetNode ?? "")}"
+                  placeholder="Target node id"
+                  data-graph-target-input
+                  class="w-full rounded-md border border-base-200 dark:border-base-800 bg-white dark:bg-base-900 px-2.5 py-1.5 text-xs dark:text-base-100 text-base-900"
+                />
+                <datalist id="graph-node-options">
+                  ${graphIndex.sortedNodes.map((node) => `<option value="${esc(node.id)}">${esc(node.label)}</option>`).join("")}
+                </datalist>
+                <button class="mt-2 rounded-md px-2.5 py-1.5 text-xs border border-base-200 dark:border-base-700" data-action="trace-graph-path">Trace path</button>
+              </div>
+              <div class="mt-2 flex flex-col gap-1">${pathRows}</div>
+            </div>
+          `
+          : `
+            <div>
+              <div class="text-sm font-medium dark:text-white text-base-900">Node Details</div>
+              ${
+                selectedNode
+                  ? `
+                    <div class="mt-2 text-xs dark:text-base-300 text-base-700">${esc(selectedNode.label)}</div>
+                    <div class="text-[11px] dark:text-base-500 text-base-400">${esc(selectedNode.id)}</div>
+                    <div class="text-[11px] dark:text-base-500 text-base-400 mt-1">incoming: ${formatNumber(incoming.length)} · outgoing: ${formatNumber(outgoing.length)}</div>
+                    <div class="mt-2 text-[11px] dark:text-base-500 text-base-400">Top outgoing:</div>
+                    <div class="flex flex-col gap-1 mt-1">
+                      ${outgoing.slice(0, 6).map((edge) => {
+                        const to = graphIndex.nodesById.get(edge.to);
+                        return `<button class="text-left text-xs rounded px-2 py-1 border border-base-200 dark:border-base-800" data-action="select-graph-node" data-graph-node="${esc(edge.to)}">${esc(to?.label ?? edge.to)} · ${esc(edge.edgeHumanType)}</button>`;
+                      }).join("") || '<div class="text-xs dark:text-base-500 text-base-400">None</div>'}
+                    </div>
+                  `
+                  : '<div class="mt-2 text-xs dark:text-base-500 text-base-400">Select a node in the browser.</div>'
+              }
+            </div>
+          `;
 
-      graphContentSlot.innerHTML = sections;
+      const explorerMarkup = `
+        <div class="grid grid-cols-1 xl:grid-cols-[280px_minmax(0,1fr)_320px] gap-3">
+          <div class="rounded-lg border border-base-200 dark:border-base-800 p-3 bg-base-50 dark:bg-base-950">
+            <div class="text-xs font-medium uppercase tracking-wide dark:text-base-500 text-base-400 mb-2">Node Browser</div>
+            <div class="max-h-[560px] overflow-auto">${nodeRows || '<p class="text-sm dark:text-base-500 text-base-400">No matching nodes</p>'}</div>
+          </div>
+
+          <div class="rounded-lg border border-base-200 dark:border-base-800 p-3 bg-base-50 dark:bg-base-950">
+            <div class="flex flex-wrap gap-2 items-center mb-2">
+              <button class="rounded-md px-2.5 py-1 text-xs border ${viewState.graphHopDepth === 1 ? "border-emerald-500/50 bg-emerald-50 dark:bg-emerald-500/10" : "border-base-200 dark:border-base-700"}" data-action="set-graph-depth" data-depth="1">1-hop</button>
+              <button class="rounded-md px-2.5 py-1 text-xs border ${viewState.graphHopDepth === 2 ? "border-emerald-500/50 bg-emerald-50 dark:bg-emerald-500/10" : "border-base-200 dark:border-base-700"}" data-action="set-graph-depth" data-depth="2">2-hop</button>
+              <button class="rounded-md px-2.5 py-1 text-xs border border-base-200 dark:border-base-700" data-action="reset-graph-types">Reset filters</button>
+              <button class="rounded-md px-2.5 py-1 text-xs border border-base-200 dark:border-base-700" data-action="graph-fit">Fit to selection</button>
+            </div>
+            <div class="flex flex-wrap gap-1.5 mb-3">${edgeFilterChips}</div>
+            <svg viewBox="0 0 840 520" class="w-full h-[520px] rounded-md border border-base-200 dark:border-base-800 bg-white dark:bg-base-900">
+              <defs>
+                <marker id="graph-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+                  <path d="M0,0 L8,4 L0,8 Z" fill="#94a3b8"></path>
+                </marker>
+              </defs>
+              ${edgeLines}
+              ${nodeCircles}
+            </svg>
+          </div>
+
+          <div class="rounded-lg border border-base-200 dark:border-base-800 p-3 bg-base-50 dark:bg-base-950">
+            <div class="flex items-center gap-2 mb-2">
+              <button class="rounded-md px-2 py-1 text-xs border ${graphInspectorTab === "node" ? "border-emerald-500/50 bg-emerald-50 dark:bg-emerald-500/10" : "border-base-200 dark:border-base-700"}" data-action="set-graph-pane" data-graph-pane="node">Node Details</button>
+              <button class="rounded-md px-2 py-1 text-xs border ${graphInspectorTab === "edge" ? "border-emerald-500/50 bg-emerald-50 dark:bg-emerald-500/10" : "border-base-200 dark:border-base-700"}" data-action="set-graph-pane" data-graph-pane="edge">Edge Details</button>
+              <button class="rounded-md px-2 py-1 text-xs border ${graphInspectorTab === "path" ? "border-emerald-500/50 bg-emerald-50 dark:bg-emerald-500/10" : "border-base-200 dark:border-base-700"}" data-action="set-graph-pane" data-graph-pane="path">Path Trace</button>
+            </div>
+            ${rightPane}
+          </div>
+        </div>
+      `;
+
+      ensureSearchShell("graph", graphContentSlot, "Search graph nodes");
+      setSearchResults("graph", explorerMarkup);
+    }
+
+    function refreshSearchById(id) {
+      if (!parsed) return;
+      if (id === "pageList") {
+        refreshPageSearchResults();
+        return;
+      }
+      if (id === "reusableList") {
+        refreshReusableSearchResults();
+        return;
+      }
+      if (id === "backend") {
+        refreshBackendSearchResults();
+        return;
+      }
+      if (id === "api") {
+        refreshApiSearchResults();
+        return;
+      }
+      if (id === "graph") {
+        refreshGraphSearchResults();
+      }
     }
 
     function bootstrapParsedData(data) {
       parsed = data;
+      graphIndex = buildGraphIndex(data.details.graph);
       summarize(data);
 
       if (!viewState.selectedPage) {
@@ -602,6 +1045,12 @@ import DeepLinkState from "@/components/inspect-upload/DeepLinkState.astro";
         });
       }
 
+      if (!viewState.selectedGraphNode) {
+        viewState = mergeInspectorViewState(viewState, {
+          selectedGraphNode: graphIndex.sortedNodes.find((n) => n.type === "page")?.id ?? graphIndex.sortedNodes[0]?.id ?? null,
+        });
+      }
+
       resultsSection.classList.remove("hidden");
       applyViewState();
     }
@@ -613,6 +1062,7 @@ import DeepLinkState from "@/components/inspect-upload/DeepLinkState.astro";
 
     function findEdgeById(id) {
       if (!parsed || !id) return null;
+      if (graphIndex?.edgesById?.has(id)) return graphIndex.edgesById.get(id);
       return parsed.details.graph.edges.find((edge) => edge.id === id) ?? null;
     }
 
@@ -714,7 +1164,18 @@ import DeepLinkState from "@/components/inspect-upload/DeepLinkState.astro";
 
     document.addEventListener("click", (event) => {
       const target = event.target;
-      if (!(target instanceof HTMLElement)) return;
+      if (!(target instanceof Element)) return;
+
+      const clearBtn = target.closest("[data-search-clear]");
+      if (clearBtn instanceof HTMLElement) {
+        const id = clearBtn.getAttribute("data-search-clear");
+        if (!id || !(id in searchState)) return;
+        searchState[id] = "";
+        const input = document.querySelector(`[data-search-input="${id}"]`);
+        if (input instanceof HTMLInputElement) input.value = "";
+        refreshSearchById(id);
+        return;
+      }
 
       const tabBtn = target.closest("[data-tab-btn]");
       if (tabBtn instanceof HTMLElement) {
@@ -723,9 +1184,95 @@ import DeepLinkState from "@/components/inspect-upload/DeepLinkState.astro";
       }
 
       const actionNode = target.closest("[data-action]");
-      if (!(actionNode instanceof HTMLElement)) return;
+      if (!(actionNode instanceof Element)) return;
 
       const action = actionNode.getAttribute("data-action");
+
+      if (action === "set-graph-pane") {
+        graphInspectorTab = actionNode.getAttribute("data-graph-pane") ?? "node";
+        renderGraphPanel();
+        return;
+      }
+
+      if (action === "select-graph-node") {
+        setViewState({
+          tab: "graph",
+          selectedGraphNode: actionNode.getAttribute("data-graph-node"),
+          selectedGraphEdge: null,
+          selectedEdge: null,
+          linkedWorkflowFromEdge: null,
+        });
+        graphInspectorTab = "node";
+        return;
+      }
+
+      if (action === "select-graph-edge") {
+        const edgeId = actionNode.getAttribute("data-graph-edge-id");
+        const edge = findEdgeById(edgeId);
+        setViewState({
+          tab: "graph",
+          selectedGraphEdge: edgeId,
+          selectedEdge: edgeId,
+          linkedWorkflowFromEdge: edge?.sourceWorkflow ?? null,
+        });
+        graphInspectorTab = "edge";
+        return;
+      }
+
+      if (action === "set-graph-depth") {
+        const depth = Number(actionNode.getAttribute("data-depth")) === 2 ? 2 : 1;
+        setViewState({ tab: "graph", graphHopDepth: depth });
+        return;
+      }
+
+      if (action === "toggle-graph-type") {
+        const type = actionNode.getAttribute("data-graph-type");
+        if (!type) return;
+        const set = parseGraphTypesParam(viewState.graphEdgeTypes);
+        if (set.has(type)) set.delete(type);
+        else set.add(type);
+        setViewState({ tab: "graph", graphEdgeTypes: serializeGraphTypesParam(set) });
+        return;
+      }
+
+      if (action === "reset-graph-types") {
+        setViewState({ tab: "graph", graphEdgeTypes: null });
+        return;
+      }
+
+      if (action === "trace-graph-path") {
+        const input = document.querySelector("[data-graph-target-input]");
+        const targetNode = input instanceof HTMLInputElement ? input.value.trim() : "";
+        setViewState({ tab: "graph", graphPathTargetNode: targetNode || null });
+        graphInspectorTab = "path";
+        return;
+      }
+
+      if (action === "graph-fit") {
+        renderGraphPanel();
+        return;
+      }
+
+      if (action === "open-edge-workflow") {
+        const workflowId = actionNode.getAttribute("data-workflow-id");
+        const wf = findWorkflowById(workflowId);
+        if (!wf) return;
+        const targetTab = wf.scope === "api"
+          ? "backend"
+          : (wf.scope === "reusable" ? "reusable" : "page");
+        const contextKey = wf.scope === "api"
+          ? "backend"
+          : (wf.scope === "reusable" ? `reusable:${wf.ownerKey}` : `page:${wf.ownerKey}`);
+        setExpandedForContext(contextKey, workflowId);
+        setViewState({
+          tab: targetTab,
+          selectedWorkflow: workflowId,
+          selectedPage: wf.scope === "page" ? wf.ownerKey : viewState.selectedPage,
+          selectedReusable: wf.scope === "reusable" ? wf.ownerKey : viewState.selectedReusable,
+          selectedPageTab: wf.scope === "api" ? viewState.selectedPageTab : "workflows",
+        });
+        return;
+      }
 
       if (action === "select-page") {
         setViewState({
@@ -806,9 +1353,32 @@ import DeepLinkState from "@/components/inspect-upload/DeepLinkState.astro";
         setViewState({
           tab: "graph",
           selectedEdge: edgeId,
+          selectedGraphEdge: edgeId,
           linkedWorkflowFromEdge: edge?.sourceWorkflow ?? null,
         });
+        graphInspectorTab = "edge";
       }
+    });
+
+    document.addEventListener("input", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      const id = target.getAttribute("data-search-input");
+      if (!id || !(id in searchState)) return;
+      searchState[id] = target.value;
+      refreshSearchById(id);
+    });
+
+    document.addEventListener("keydown", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      const id = target.getAttribute("data-search-input");
+      if (!id || !(id in searchState)) return;
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      searchState[id] = "";
+      target.value = "";
+      refreshSearchById(id);
     });
   </script>
 

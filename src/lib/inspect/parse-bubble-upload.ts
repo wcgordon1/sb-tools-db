@@ -86,8 +86,26 @@ export interface ApiParamMeta {
 
 export interface ApiResponseSummary {
   topLevelFields: Array<{ path: string; type: string }>;
+  fields: ApiResponseField[];
+  groups: ApiResponseGroup[];
   truncated: boolean;
   totalFieldEstimate?: number;
+  parseError?: string | null;
+}
+
+export interface ApiResponseField {
+  path: string;
+  pathSegments: string[];
+  caption: string;
+  type: string;
+  sampleValue: string | null;
+}
+
+export interface ApiResponseGroup {
+  key: string;
+  label: string;
+  fieldCount: number;
+  fields: ApiResponseField[];
 }
 
 export interface ApiCallDetail extends ApiConnectorCallMeta {
@@ -1326,7 +1344,7 @@ function extractApiConnectorConfig(settingsRaw: Record<string, unknown>): ApiCon
         urlParams: recordOrEmpty(callValue.url_params),
         auth: redactSecrets(recordOrEmpty(connectorValue.auth)),
         bodyParams: recordOrEmpty(callValue.body_params),
-        responseSummary: summarizeApiResponseTypes(recordOrEmpty(callValue.types)),
+        responseSummary: summarizeApiResponseTypes(callValue.types),
         requestParams: extractApiRequestParams(callValue),
         resourceKey: inferApiResourceKey(asString(callValue.url)),
       });
@@ -1395,19 +1413,108 @@ function extractApiRequestParams(callValue: Record<string, unknown>): ApiParamMe
   return stableSortBy(out, (item) => `${item.location}:${item.key}`);
 }
 
-function summarizeApiResponseTypes(typesRaw: Record<string, unknown>): ApiResponseSummary {
-  const entries = sortedEntries(typesRaw).filter(([, value]) => typeof value === "string");
-  const max = 25;
-  const fields = entries.slice(0, max).map(([path, type]) => ({
-    path,
-    type: String(type),
-  }));
+function summarizeApiResponseTypes(typesRaw: unknown): ApiResponseSummary {
+  const parsedPayload = parseApiTypesPayload(typesRaw);
+  if (!parsedPayload.ok) {
+    return {
+      topLevelFields: [],
+      fields: [],
+      groups: [],
+      truncated: false,
+      totalFieldEstimate: 0,
+      parseError: parsedPayload.parseError,
+    };
+  }
+
+  const rows: ApiResponseField[] = [];
+  for (const [, rootValue] of sortedEntries(parsedPayload.payload)) {
+    if (!isRecord(rootValue)) continue;
+    const fieldsRaw = recordOrEmpty(rootValue.fields);
+    for (const [fieldKey, fieldValue] of sortedEntries(fieldsRaw)) {
+      if (!isRecord(fieldValue)) continue;
+      const pathSegments = extractResponsePathSegments(fieldValue, fieldKey);
+      const path = pathSegments.length ? pathSegments.join(".") : fieldKey;
+      rows.push({
+        path,
+        pathSegments,
+        caption: asString(fieldValue.caption) ?? path,
+        type: asString(fieldValue.ret_btype) ?? "unknown",
+        sampleValue: previewApiValue(fieldValue.sample_value),
+      });
+    }
+  }
+
+  const sortedRows = stableSortBy(rows, (row) => row.path);
+  const maxRows = 60;
+  const visibleRows = sortedRows.slice(0, maxRows);
+  const groups = buildResponseGroups(visibleRows);
 
   return {
-    topLevelFields: fields,
-    truncated: entries.length > max,
-    totalFieldEstimate: entries.length,
+    topLevelFields: visibleRows.slice(0, 25).map((field) => ({ path: field.path, type: field.type })),
+    fields: visibleRows,
+    groups,
+    truncated: sortedRows.length > maxRows,
+    totalFieldEstimate: sortedRows.length,
+    parseError: null,
   };
+}
+
+function parseApiTypesPayload(typesRaw: unknown): { ok: true; payload: Record<string, unknown> } | { ok: false; parseError: string } {
+  if (isRecord(typesRaw)) {
+    return { ok: true, payload: typesRaw };
+  }
+  if (typeof typesRaw === "string") {
+    const trimmed = typesRaw.trim();
+    if (!trimmed) return { ok: false, parseError: "Empty response metadata" };
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (!isRecord(parsed)) return { ok: false, parseError: "Unsupported response metadata shape" };
+      return { ok: true, payload: parsed };
+    } catch {
+      return { ok: false, parseError: "Invalid response metadata JSON" };
+    }
+  }
+  return { ok: false, parseError: "Unsupported response metadata shape" };
+}
+
+function extractResponsePathSegments(fieldValue: Record<string, unknown>, fieldKey: string): string[] {
+  const path = fieldValue.path;
+  if (Array.isArray(path)) {
+    const segments = path
+      .map((segment) => (typeof segment === "string" ? segment.trim() : ""))
+      .filter(Boolean);
+    if (segments.length) return segments;
+  }
+
+  if (fieldKey.includes(".")) {
+    return fieldKey
+      .split(".")
+      .map((segment, index) => (index === 0 ? segment.replace(/^_api_c2_/, "") : segment))
+      .map((segment) => segment.trim())
+      .filter(Boolean);
+  }
+
+  return [fieldKey];
+}
+
+function buildResponseGroups(fields: ApiResponseField[]): ApiResponseGroup[] {
+  const byGroup = new Map<string, ApiResponseField[]>();
+  for (const field of fields) {
+    const groupSegments = field.pathSegments.slice(0, 2);
+    const key = groupSegments.length ? groupSegments.join(".") : "root";
+    if (!byGroup.has(key)) byGroup.set(key, []);
+    byGroup.get(key)?.push(field);
+  }
+
+  return stableSortBy(
+    [...byGroup.entries()].map(([key, grouped]) => ({
+      key,
+      label: key,
+      fieldCount: grouped.length,
+      fields: stableSortBy(grouped, (field) => field.path),
+    })),
+    (group) => group.key,
+  );
 }
 
 function inferApiResourceKey(url: string | null): string {

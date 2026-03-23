@@ -1,6 +1,7 @@
 export type UploadInspectorTab = "page" | "reusable" | "backend" | "api" | "graph";
 export type UploadPageTab = "workflows" | "reusables";
 export type WorkflowPanelContextKey = "backend" | `page:${string}` | `reusable:${string}`;
+export type GraphHopDepth = 1 | 2;
 
 export interface InspectorViewState {
   tab: UploadInspectorTab;
@@ -8,6 +9,11 @@ export interface InspectorViewState {
   selectedReusable: string | null;
   selectedWorkflow: string | null;
   selectedEdge: string | null;
+  selectedGraphNode: string | null;
+  selectedGraphEdge: string | null;
+  graphHopDepth: GraphHopDepth;
+  graphPathTargetNode: string | null;
+  graphEdgeTypes: string | null;
   selectedPageTab: UploadPageTab;
   expandedByContext: Record<string, string | null>;
   linkedWorkflowFromEdge: string | null;
@@ -19,6 +25,11 @@ const DEFAULT_STATE: InspectorViewState = {
   selectedReusable: null,
   selectedWorkflow: null,
   selectedEdge: null,
+  selectedGraphNode: null,
+  selectedGraphEdge: null,
+  graphHopDepth: 1,
+  graphPathTargetNode: null,
+  graphEdgeTypes: null,
   selectedPageTab: "workflows",
   expandedByContext: {},
   linkedWorkflowFromEdge: null,
@@ -38,13 +49,21 @@ export function parseInspectorViewStateFromSearch(search: string): InspectorView
   const selectedPageTab = PAGE_TAB_VALUES.has(pageTabRaw as UploadPageTab)
     ? (pageTabRaw as UploadPageTab)
     : DEFAULT_STATE.selectedPageTab;
+  const graphDepthRaw = params.get("graphDepth");
+  const graphHopDepth: GraphHopDepth = graphDepthRaw === "2" ? 2 : 1;
+  const selectedGraphEdge = params.get("graphEdge") ?? params.get("edge");
 
   return {
     tab,
     selectedPage: params.get("page"),
     selectedReusable: params.get("reusable"),
     selectedWorkflow: params.get("workflow"),
-    selectedEdge: params.get("edge"),
+    selectedEdge: selectedGraphEdge,
+    selectedGraphNode: params.get("graphNode"),
+    selectedGraphEdge,
+    graphHopDepth,
+    graphPathTargetNode: params.get("graphTarget"),
+    graphEdgeTypes: params.get("graphTypes"),
     selectedPageTab,
     expandedByContext: {},
     linkedWorkflowFromEdge: null,
@@ -59,6 +78,11 @@ export function serializeInspectorViewStateToSearch(state: InspectorViewState): 
   if (state.selectedReusable) params.set("reusable", state.selectedReusable);
   if (state.selectedWorkflow) params.set("workflow", state.selectedWorkflow);
   if (state.selectedEdge) params.set("edge", state.selectedEdge);
+  if (state.selectedGraphNode) params.set("graphNode", state.selectedGraphNode);
+  if (state.selectedGraphEdge) params.set("graphEdge", state.selectedGraphEdge);
+  if (state.graphHopDepth) params.set("graphDepth", String(state.graphHopDepth));
+  if (state.graphPathTargetNode) params.set("graphTarget", state.graphPathTargetNode);
+  if (state.graphEdgeTypes) params.set("graphTypes", state.graphEdgeTypes);
   if (state.selectedPageTab) params.set("pageTab", state.selectedPageTab);
 
   const serialized = params.toString();
