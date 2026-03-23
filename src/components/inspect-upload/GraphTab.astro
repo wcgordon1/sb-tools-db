@@ -1,0 +1,11 @@
+---
+import Text from "@/components/fundations/elements/Text.astro";
+---
+
+<div data-panel="graph" class="hidden rounded-xl border border-base-200 dark:border-base-800 p-4">
+  <div class="flex items-center justify-between gap-3">
+    <Text tag="h3" variant="textBase" class="dark:text-white text-base-900 font-medium">Dependency Graph (Text)</Text>
+    <span class="text-xs dark:text-base-500 text-base-400" data-slot="graph-counts"></span>
+  </div>
+  <div class="mt-3" data-slot="graph-content"></div>
+</div>

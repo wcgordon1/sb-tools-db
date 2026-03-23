@@ -1,0 +1,16 @@
+---
+import Text from "@/components/fundations/elements/Text.astro";
+---
+
+<div class="flex flex-col gap-3">
+  <Text tag="h2" variant="displaySM" class="dark:text-white text-base-900 font-medium tracking-tighter">
+    Inspector Views
+  </Text>
+  <div class="flex flex-wrap items-center gap-3" data-ui="tabs" role="tablist" aria-label="Inspector tabs">
+    <button class="cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium ring-1 ring-base-200 dark:ring-base-800 dark:text-base-300 text-base-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" data-tab-btn="page" role="tab">Page View</button>
+    <button class="cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium ring-1 ring-base-200 dark:ring-base-800 dark:text-base-300 text-base-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" data-tab-btn="reusable" role="tab">Reusable Elements</button>
+    <button class="cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium ring-1 ring-base-200 dark:ring-base-800 dark:text-base-300 text-base-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" data-tab-btn="backend" role="tab">Backend</button>
+    <button class="cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium ring-1 ring-base-200 dark:ring-base-800 dark:text-base-300 text-base-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" data-tab-btn="api" role="tab">API Connector</button>
+    <button class="cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium ring-1 ring-base-200 dark:ring-base-800 dark:text-base-300 text-base-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" data-tab-btn="graph" role="tab">Graph</button>
+  </div>
+</div>
